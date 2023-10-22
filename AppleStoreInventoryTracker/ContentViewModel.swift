@@ -7,6 +7,7 @@
 
 import Foundation
 import Observation
+import UserNotifications
 
 @Observable
 class ContentViewModel {
@@ -17,6 +18,41 @@ class ContentViewModel {
     
     @ObservationIgnored private var timer: Timer?
     
+    func requestUNAuthorization() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
+            if granted {
+                print("All set!")
+            } else if let error = error {
+                print(error.localizedDescription)
+            }
+        }
+    }
+    
+    func sendUserNotificationIfNeeded() {
+        guard isTracking,
+              inventoryInfo.filter({ $0.isProductAvailable }).count > 0 
+        else {
+            return
+        }
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            guard settings.authorizationStatus == .authorized,
+                  settings.alertSetting == .enabled else {
+                return
+            }
+            let content = UNMutableNotificationContent()
+            content.title = "附近 \(self.inventoryInfo.filter({ $0.isProductAvailable }).count) 家 Apple Store 有现货‼️"
+            content.body = "\(self.inventoryInfo.first?.productName ?? "")"
+            let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.3, repeats: false)
+            let request = UNNotificationRequest(
+                identifier: UUID().uuidString,
+                content: content,
+                trigger: trigger
+            )
+            UNUserNotificationCenter.current().add(request)
+        }
+    }
+    
+    @MainActor
     func startTracking(for productId: String, location: String, frequency: Int) {
         isTracking = true
         timer = .init(timeInterval: TimeInterval(frequency), repeats: true) { [weak self] timer in
@@ -24,15 +60,17 @@ class ContentViewModel {
                 timer.invalidate()
                 return
             }
-            Task {
+            Task { @MainActor in
                 self.inventoryInfo = await self.fetchStoreInventoryInfo(for: productId, location: location)
                 self.trackingCount += 1
+                self.sendUserNotificationIfNeeded()
             }
         }
         RunLoop.main.add(timer!, forMode: .common)
         timer?.fire()
     }
     
+    @MainActor
     func stopTracking() {
         isTracking = false
         trackingCount = 0

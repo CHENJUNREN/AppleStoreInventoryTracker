@@ -10,8 +10,7 @@ import SwiftUI
 struct ContentView: View {
     
     @State private var vm = ContentViewModel()
-    
-    @State private var partNumber: String = ""
+    @State private var partNumber: String = "MU2Q3CH/A"
     @State private var province: String = "上海"
     @State private var city: String = "上海"
     @State private var district: String = "徐汇区"
@@ -49,20 +48,20 @@ struct ContentView: View {
                             vm.stopTracking()
                         } else {
                             vm.startTracking(
-                                for: "MU2Q3CH/A",
-                                location: "上海 上海 徐汇区",
-                                frequency: self.frequency
+                                for: partNumber,
+                                location: [province, city, district].joined(separator: " "),
+                                frequency: frequency
                             )
                         }
                     }
                 }, label: {
-                    Text(vm.isTracking ? (vm.trackingCount > 0 ? "✅完成第 \(vm.trackingCount) 次查询" : "🔍查询中...") : "开始查询")
+                    Text(vm.isTracking ? "停止查询" : "开始查询")
                         .padding(.vertical, 10)
                         .frame(width: 250)
                 })
                 .clipShape(.capsule)
                 .buttonStyle(.borderedProminent)
-                .tint(vm.isTracking ? .secondary : .blue)
+                .tint(vm.isTracking ? .red : .blue)
                 .padding(.bottom, 40)
             }
             .frame(width: 350, height: 500)
@@ -94,6 +93,9 @@ struct ContentView: View {
             .frame(width: 350, height: 500)
         }
         .frame(height: 500)
+        .onAppear {
+            vm.requestUNAuthorization()
+        }
     }
 }
 
