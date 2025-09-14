@@ -9,13 +9,17 @@ import Foundation
 import Observation
 import UserNotifications
 
+typealias PushNotificationSettings = (isAppNotificationOn: Bool, isBarkNotificationOn: Bool, barkPushUrl: String)
+
 @Observable
 class ContentViewModel {
     
     private(set) var isTracking = false
     private(set) var trackingCount = 0
-    private(set) var inventoryInfo: [StoreInventoryInfo] = []
+    private(set) var inventoryInfos: [[StoreInventoryInfo]] = []
     
+    private(set) var countdownRemaining = 0
+    private(set) var countdown = 0
     @ObservationIgnored private var timer: Timer?
     
     func requestUNAuthorization() {
@@ -28,43 +32,95 @@ class ContentViewModel {
         }
     }
     
-    func sendUserNotificationIfNeeded() {
-        guard isTracking,
-              inventoryInfo.filter({ $0.isProductAvailable }).count > 0 
+    func sendNotificationIfNeeded(settings: PushNotificationSettings) {
+        guard isTracking &&
+                (settings.isAppNotificationOn || settings.isBarkNotificationOn)
         else {
             return
         }
-        UNUserNotificationCenter.current().getNotificationSettings { settings in
-            guard settings.authorizationStatus == .authorized,
-                  settings.alertSetting == .enabled else {
-                return
+        
+        for inventoryInfo in inventoryInfos {
+            guard inventoryInfo.filter(\.isProductAvailable).count > 0 else {
+                continue
             }
-            let content = UNMutableNotificationContent()
-            content.title = "附近 \(self.inventoryInfo.filter({ $0.isProductAvailable }).count) 家 Apple Store 有现货‼️"
-            content.body = "\(self.inventoryInfo.first?.productName ?? "")"
-            let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.3, repeats: false)
-            let request = UNNotificationRequest(
-                identifier: UUID().uuidString,
-                content: content,
-                trigger: trigger
-            )
-            UNUserNotificationCenter.current().add(request)
+//            let title = "附近 \(inventoryInfo.filter(\.isProductAvailable).count) 家 Apple Store 有现货‼️"
+//            let body = inventoryInfo.first!.productName
+            let title = inventoryInfo.first!.productName + "(\(inventoryInfo.filter(\.isProductAvailable).count))‼️"
+            let body = inventoryInfo.filter(\.isProductAvailable).map(\.storeName).joined(separator: ", ")
+            // App 通知推送
+            if settings.isAppNotificationOn {
+                UNUserNotificationCenter.current().getNotificationSettings { settings in
+                    guard settings.authorizationStatus == .authorized,
+                          settings.alertSetting == .enabled
+                    else {
+                        return
+                    }
+                    let content = UNMutableNotificationContent()
+                    content.title = title
+                    content.body = body
+                    let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.3, repeats: false)
+                    let request = UNNotificationRequest(
+                        identifier: UUID().uuidString,
+                        content: content,
+                        trigger: trigger
+                    )
+                    UNUserNotificationCenter.current().add(request)
+                }
+            }
+            // Bark 推送
+            if settings.isBarkNotificationOn {
+                let barkPushUrl = settings.barkPushUrl
+                let urlString = barkPushUrl.hasSuffix("/") ? barkPushUrl : barkPushUrl + "/"
+                if let url = URL(string: urlString + "\(title)/\(body)") {
+                    URLSession.shared.dataTask(with: url).resume()
+                }
+            }
         }
     }
     
     @MainActor
-    func startTracking(for productId: String, location: String, frequency: Int) {
+    func startTracking(
+        for productIds: String,
+        location: String,
+        countdown: Int,
+        pushNotificationSettings: PushNotificationSettings
+    ) {
         isTracking = true
-        timer = .init(timeInterval: TimeInterval(frequency), repeats: true) { [weak self] timer in
+        self.countdown = countdown
+        timer = .init(timeInterval: 1, repeats: true) { [weak self] timer in
             guard let self = self else {
                 timer.invalidate()
                 return
             }
-            Task { @MainActor in
-                self.inventoryInfo = await self.fetchStoreInventoryInfo(for: productId, location: location)
-                self.trackingCount += 1
-                self.sendUserNotificationIfNeeded()
+            self.countdownRemaining -= 1
+            guard self.countdownRemaining < 0 else {
+                return
             }
+            Task { @MainActor in
+                let ids = productIds
+                    .components(separatedBy: ",")
+                    .map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) })
+                    .filter({ !$0.isEmpty })
+                
+                self.inventoryInfos = await withTaskGroup(
+                    of: [StoreInventoryInfo].self,
+                    returning: [[StoreInventoryInfo]].self
+                ) { taskGroup in
+                    for id in ids {
+                        taskGroup.addTask {
+                            await self.fetchStoreInventoryInfo(for: id, location: location)
+                        }
+                    }
+                    var result = [[StoreInventoryInfo]]()
+                    for await task in taskGroup {
+                        result.append(task)
+                    }
+                    return result.filter({ !$0.isEmpty }).sorted(by: { $0.first!.productName < $1.first!.productName })
+                }
+                self.trackingCount += 1
+                self.sendNotificationIfNeeded(settings: pushNotificationSettings)
+            }
+            self.countdownRemaining = self.countdown
         }
         RunLoop.main.add(timer!, forMode: .common)
         timer?.fire()
@@ -74,9 +130,11 @@ class ContentViewModel {
     func stopTracking() {
         isTracking = false
         trackingCount = 0
-        inventoryInfo = []
+        inventoryInfos = []
         timer?.invalidate()
         timer = nil
+        countdown = 0
+        countdownRemaining = 0
     }
 
     func fetchStoreInventoryInfo(for productId: String, location: String) async -> [StoreInventoryInfo] {
@@ -112,7 +170,7 @@ class ContentViewModel {
                 )
                 result.append(info)
             }
-            return result
+            return result.sorted(by: { $0.storeName > $1.storeName })
         } else {
             return []
         }

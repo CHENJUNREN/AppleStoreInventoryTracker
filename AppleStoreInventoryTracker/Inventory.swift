@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct StoreInventoryInfo: Identifiable {
+struct StoreInventoryInfo: Identifiable, Hashable {
     let id: UUID = .init()
     let storeName: String
     let storeImageUrl: String

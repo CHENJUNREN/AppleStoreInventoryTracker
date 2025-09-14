@@ -9,10 +9,10 @@
 /* Begin PBXBuildFile section */
 		A2240AE52ADD2229006AC094 /* AppleStoreInventoryTrackerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2240AE42ADD2229006AC094 /* AppleStoreInventoryTrackerApp.swift */; };
 		A2240AE72ADD2229006AC094 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2240AE62ADD2229006AC094 /* ContentView.swift */; };
-		A2240AE92ADD222A006AC094 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2240AE82ADD222A006AC094 /* Assets.xcassets */; };
 		A2240AEC2ADD222A006AC094 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2240AEB2ADD222A006AC094 /* Preview Assets.xcassets */; };
 		A2240AF52ADE387A006AC094 /* Inventory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2240AF42ADE387A006AC094 /* Inventory.swift */; };
 		A2240AF72ADE5B8C006AC094 /* StoreInventoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2240AF62ADE5B8C006AC094 /* StoreInventoryView.swift */; };
+		A2328F2F2CB817E9006B3E6A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2328F2E2CB817E9006B3E6A /* Assets.xcassets */; };
 		A2C75AB62AE103710065D12E /* ContentViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2C75AB52AE103710065D12E /* ContentViewModel.swift */; };
 /* End PBXBuildFile section */
 
@@ -20,11 +20,11 @@
 		A2240AE12ADD2229006AC094 /* AppleStoreInventoryTracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AppleStoreInventoryTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A2240AE42ADD2229006AC094 /* AppleStoreInventoryTrackerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleStoreInventoryTrackerApp.swift; sourceTree = "<group>"; };
 		A2240AE62ADD2229006AC094 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		A2240AE82ADD222A006AC094 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A2240AEB2ADD222A006AC094 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		A2240AED2ADD222A006AC094 /* AppleStoreInventoryTracker.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AppleStoreInventoryTracker.entitlements; sourceTree = "<group>"; };
 		A2240AF42ADE387A006AC094 /* Inventory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Inventory.swift; sourceTree = "<group>"; };
 		A2240AF62ADE5B8C006AC094 /* StoreInventoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreInventoryView.swift; sourceTree = "<group>"; };
+		A2328F2E2CB817E9006B3E6A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A2C75AB52AE103710065D12E /* ContentViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewModel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -63,8 +63,8 @@
 				A2240AE62ADD2229006AC094 /* ContentView.swift */,
 				A2240AF62ADE5B8C006AC094 /* StoreInventoryView.swift */,
 				A2C75AB52AE103710065D12E /* ContentViewModel.swift */,
-				A2240AE82ADD222A006AC094 /* Assets.xcassets */,
 				A2240AED2ADD222A006AC094 /* AppleStoreInventoryTracker.entitlements */,
+				A2328F2E2CB817E9006B3E6A /* Assets.xcassets */,
 				A2240AEA2ADD222A006AC094 /* Preview Content */,
 			);
 			path = AppleStoreInventoryTracker;
@@ -106,7 +106,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1500;
-				LastUpgradeCheck = 1500;
+				LastUpgradeCheck = 1600;
 				TargetAttributes = {
 					A2240AE02ADD2229006AC094 = {
 						CreatedOnToolsVersion = 15.0.1;
@@ -136,8 +136,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A2328F2F2CB817E9006B3E6A /* Assets.xcassets in Resources */,
 				A2240AEC2ADD222A006AC094 /* Preview Assets.xcassets in Resources */,
-				A2240AE92ADD222A006AC094 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -193,6 +193,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -256,6 +257,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -287,11 +289,13 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"AppleStoreInventoryTracker/Preview Content\"";
 				DEVELOPMENT_TEAM = U3YTV787NM;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -316,11 +320,13 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"AppleStoreInventoryTracker/Preview Content\"";
 				DEVELOPMENT_TEAM = U3YTV787NM;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
