@@ -7,173 +7,141 @@
 
 import Foundation
 import Observation
-import UserNotifications
 
-typealias PushNotificationSettings = (isAppNotificationOn: Bool, isBarkNotificationOn: Bool, barkPushUrl: String)
+@MainActor
+protocol TrackingClock {
+    var now: TimeInterval { get }
+    func sleep(seconds: TimeInterval) async throws
+}
 
+@MainActor
+struct SystemTrackingClock: TrackingClock {
+    var now: TimeInterval { ProcessInfo.processInfo.systemUptime }
+    func sleep(seconds: TimeInterval) async throws {
+        try await Task.sleep(for: .seconds(seconds))
+    }
+}
+
+@MainActor
 @Observable
-class ContentViewModel {
-    
+final class ContentViewModel {
     private(set) var isTracking = false
     private(set) var trackingCount = 0
-    private(set) var inventoryInfos: [[StoreInventoryInfo]] = []
-    
+    private(set) var inventoryInfos: [ProductInventory] = []
     private(set) var countdownRemaining = 0
     private(set) var countdown = 0
-    @ObservationIgnored private var timer: Timer?
-    
-    func requestUNAuthorization() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
-            if granted {
-                print("All set!")
-            } else if let error = error {
-                print(error.localizedDescription)
-            }
-        }
-    }
-    
-    func sendNotificationIfNeeded(settings: PushNotificationSettings) {
-        guard isTracking &&
-                (settings.isAppNotificationOn || settings.isBarkNotificationOn)
-        else {
-            return
-        }
-        
-        for inventoryInfo in inventoryInfos {
-            guard inventoryInfo.filter(\.isProductAvailable).count > 0 else {
-                continue
-            }
-//            let title = "附近 \(inventoryInfo.filter(\.isProductAvailable).count) 家 Apple Store 有现货‼️"
-//            let body = inventoryInfo.first!.productName
-            let title = inventoryInfo.first!.productName + "(\(inventoryInfo.filter(\.isProductAvailable).count))‼️"
-            let body = inventoryInfo.filter(\.isProductAvailable).map(\.storeName).joined(separator: ", ")
-            // App 通知推送
-            if settings.isAppNotificationOn {
-                UNUserNotificationCenter.current().getNotificationSettings { settings in
-                    guard settings.authorizationStatus == .authorized,
-                          settings.alertSetting == .enabled
-                    else {
-                        return
-                    }
-                    let content = UNMutableNotificationContent()
-                    content.title = title
-                    content.body = body
-                    let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.3, repeats: false)
-                    let request = UNNotificationRequest(
-                        identifier: UUID().uuidString,
-                        content: content,
-                        trigger: trigger
-                    )
-                    UNUserNotificationCenter.current().add(request)
-                }
-            }
-            // Bark 推送
-            if settings.isBarkNotificationOn {
-                let barkPushUrl = settings.barkPushUrl
-                let urlString = barkPushUrl.hasSuffix("/") ? barkPushUrl : barkPushUrl + "/"
-                if let url = URL(string: urlString + "\(title)/\(body)") {
-                    URLSession.shared.dataTask(with: url).resume()
-                }
-            }
-        }
-    }
-    
-    @MainActor
-    func startTracking(
-        for productIds: String,
-        location: String,
-        countdown: Int,
-        pushNotificationSettings: PushNotificationSettings
-    ) {
-        isTracking = true
-        self.countdown = countdown
-        timer = .init(timeInterval: 1, repeats: true) { [weak self] timer in
-            guard let self = self else {
-                timer.invalidate()
-                return
-            }
-            self.countdownRemaining -= 1
-            guard self.countdownRemaining < 0 else {
-                return
-            }
-            Task { @MainActor in
-                let ids = productIds
-                    .components(separatedBy: ",")
-                    .map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) })
-                    .filter({ !$0.isEmpty })
-                
-                self.inventoryInfos = await withTaskGroup(
-                    of: [StoreInventoryInfo].self,
-                    returning: [[StoreInventoryInfo]].self
-                ) { taskGroup in
-                    for id in ids {
-                        taskGroup.addTask {
-                            await self.fetchStoreInventoryInfo(for: id, location: location)
-                        }
-                    }
-                    var result = [[StoreInventoryInfo]]()
-                    for await task in taskGroup {
-                        result.append(task)
-                    }
-                    return result.filter({ !$0.isEmpty }).sorted(by: { $0.first!.productName < $1.first!.productName })
-                }
-                self.trackingCount += 1
-                self.sendNotificationIfNeeded(settings: pushNotificationSettings)
-            }
-            self.countdownRemaining = self.countdown
-        }
-        RunLoop.main.add(timer!, forMode: .common)
-        timer?.fire()
-    }
-    
-    @MainActor
-    func stopTracking() {
-        isTracking = false
-        trackingCount = 0
-        inventoryInfos = []
-        timer?.invalidate()
-        timer = nil
-        countdown = 0
-        countdownRemaining = 0
+    private(set) var lastError: String?
+
+    @ObservationIgnored private let client: any InventoryFetching
+    @ObservationIgnored private let notifier: any InventoryNotifying
+    @ObservationIgnored private let clock: any TrackingClock
+    @ObservationIgnored private var trackingTask: Task<Void, Never>?
+    @ObservationIgnored private var runID: UUID?
+
+    init(client: (any InventoryFetching)? = nil, notifier: (any InventoryNotifying)? = nil,
+         clock: (any TrackingClock)? = nil) {
+        self.client = client ?? InventoryClient()
+        self.notifier = notifier ?? InventoryNotifier()
+        self.clock = clock ?? SystemTrackingClock()
     }
 
-    func fetchStoreInventoryInfo(for productId: String, location: String) async -> [StoreInventoryInfo] {
-        guard !productId.isEmpty, !location.isEmpty else {
-            return []
+    func requestUNAuthorization() { notifier.requestAuthorization() }
+
+    func startTracking(for productIds: String, location: String, countdown: Int,
+                       pushNotificationSettings: PushNotificationSettings) {
+        guard !isTracking else { return }
+        var seen = Set<String>()
+        let ids = productIds.components(separatedBy: CharacterSet(charactersIn: ",，"))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() }
+            .filter { !$0.isEmpty && seen.insert($0).inserted }
+        let location = location.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Keep duration arithmetic and progress values representable even for pasted integers.
+        guard !ids.isEmpty, !location.isEmpty, countdown > 0, countdown <= Int(Int32.max) else {
+            lastError = InventoryError.invalidInput.localizedDescription
+            print("[Inventory] \(lastError!)")
+            return
         }
-        let baseURL = "https://www.apple.com.cn/shop/fulfillment-messages?pl=true&mts.0=regular&mts.1=compact&parts.0=%@&location=%@"
-        let requestURLString = String(format: baseURL, productId, location)
-        guard let str = requestURLString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: str)
-        else {
-            return []
-        }
-        
-        if let resp = try? await URLSession.shared.data(for: .init(url: url, cachePolicy: .reloadIgnoringLocalCacheData)) {
-            guard let httpResponse = resp.1 as? HTTPURLResponse,
-                  (200...299).contains(httpResponse.statusCode),
-                  let data = try? JSONDecoder().decode(InventoryAPIModel.self, from: resp.0)
-            else {
-                return []
-            }
-            var result: [StoreInventoryInfo] = []
-            let stores = data.body.content.pickupMessage.stores
-            stores.forEach { store in
-                guard let inventoryInfo = store.partsAvailability[productId] else {
-                    return
-                }
-                let info = StoreInventoryInfo(
-                    storeName: store.storeName,
-                    storeImageUrl: store.storeImageUrl,
-                    productName: inventoryInfo.messageTypes.compact.storePickupProductTitle,
-                    isProductAvailable: inventoryInfo.pickupDisplay == "available"
-                )
-                result.append(info)
-            }
-            return result.sorted(by: { $0.storeName > $1.storeName })
-        } else {
-            return []
+        let id = UUID()
+        runID = id
+        isTracking = true
+        trackingCount = 0
+        inventoryInfos = []
+        lastError = nil
+        self.countdown = countdown
+        countdownRemaining = 0
+        trackingTask = Task { [weak self] in
+            await self?.track(ids: ids, location: location, interval: countdown,
+                              settings: pushNotificationSettings, run: id)
         }
     }
-    
+
+    func stopTracking() {
+        runID = nil
+        isTracking = false
+        trackingTask?.cancel()
+        trackingTask = nil
+        notifier.cancel()
+        trackingCount = 0
+        inventoryInfos = []
+        countdown = 0
+        countdownRemaining = 0
+        lastError = nil
+    }
+
+    private func isCurrent(_ id: UUID) -> Bool {
+        isTracking && runID == id && !Task.isCancelled
+    }
+
+    private func track(ids: [String], location: String, interval: Int,
+                       settings: PushNotificationSettings, run: UUID) async {
+        var previous: [String: ProductInventory] = [:]
+        var failures = 0
+        while isCurrent(run) {
+            let started = clock.now
+            var fresh: [ProductInventory] = []
+            var errors: [String] = []
+            var retryAfter = 0
+            do {
+                let result = try await client.fetchPickupInventory(for: ids, location: location)
+                guard isCurrent(run) else { return }
+                fresh = result.inventories
+                for inventory in fresh { previous[inventory.id] = inventory }
+                errors = result.failures.keys.sorted().map { "\($0): \(result.failures[$0]!.localizedDescription)" }
+            } catch {
+                guard isCurrent(run) else { return }
+                let failure = error as? InventoryError ?? .invalidResponse
+                errors = [failure.localizedDescription]
+                retryAfter = failure.retryAfter ?? 0
+            }
+            guard isCurrent(run) else { return }
+            inventoryInfos = previous.values.filter { !$0.stores.isEmpty }.sorted {
+                let lhs = $0.stores.first?.productName ?? $0.id
+                let rhs = $1.stores.first?.productName ?? $1.id
+                return lhs == rhs ? $0.id < $1.id : lhs < rhs
+            }
+            lastError = errors.isEmpty ? nil : errors.joined(separator: "；")
+            if let lastError { print("[Inventory] \(lastError)") }
+            if errors.isEmpty {
+                trackingCount += 1
+                failures = 0
+            } else {
+                failures = min(failures + 1, 9)
+            }
+            // Only this round's confirmed results may trigger notifications.
+            await notifier.send(fresh, settings: settings)
+            guard isCurrent(run) else { return }
+            let delay = errors.isEmpty ? interval
+                : InventoryRetryPolicy.delay(interval: interval, failures: failures, retryAfter: retryAfter)
+            let deadline = errors.isEmpty ? max(started + Double(interval), clock.now) : clock.now + Double(delay)
+            countdown = delay
+            do {
+                while isCurrent(run) {
+                    let remaining = max(0, deadline - clock.now)
+                    countdownRemaining = Int(ceil(remaining))
+                    if remaining <= 0 { break }
+                    try await clock.sleep(seconds: min(1, remaining))
+                }
+            } catch { return }
+        }
+    }
 }

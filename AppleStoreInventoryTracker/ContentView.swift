@@ -9,7 +9,7 @@ import SwiftUI
 
 struct ContentView: View {
     
-    @State private var vm = ContentViewModel()
+    let vm: ContentViewModel
     @AppStorage("partNumber") private var partNumber: String = "MYLU3CH/A"
     @AppStorage("province") private var province: String = "重庆"
     @AppStorage("city") private var city: String = "重庆"
@@ -64,9 +64,9 @@ struct ContentView: View {
     
     private var resultList: some View {
         List {
-            ForEach(vm.inventoryInfos, id: \.self) { inventoryInfo in
+            ForEach(vm.inventoryInfos) { inventoryInfo in
                 Section {
-                    ForEach(inventoryInfo) { info in
+                    ForEach(inventoryInfo.stores) { info in
                         HStack {
                             Text(info.storeName)
                                 .bold()
@@ -77,8 +77,7 @@ struct ContentView: View {
                         }
                     }
                 } header: {
-                    if let first = inventoryInfo.first {
-                        // " (\(inventoryInfo.filter(\.isProductAvailable).count)/\(inventoryInfo.count))"
+                    if let first = inventoryInfo.stores.first {
                         Text(first.productName)
                             .font(.headline)
                     }

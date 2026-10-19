@@ -14,6 +14,8 @@
 		A2240AF72ADE5B8C006AC094 /* StoreInventoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2240AF62ADE5B8C006AC094 /* StoreInventoryView.swift */; };
 		A2328F2F2CB817E9006B3E6A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2328F2E2CB817E9006B3E6A /* Assets.xcassets */; };
 		A2C75AB62AE103710065D12E /* ContentViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2C75AB52AE103710065D12E /* ContentViewModel.swift */; };
+		B10000000000000000000001 /* InventoryClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* InventoryClient.swift */; };
+		B10000000000000000000003 /* InventoryNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000003 /* InventoryNotifier.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -26,6 +28,8 @@
 		A2240AF62ADE5B8C006AC094 /* StoreInventoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreInventoryView.swift; sourceTree = "<group>"; };
 		A2328F2E2CB817E9006B3E6A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A2C75AB52AE103710065D12E /* ContentViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewModel.swift; sourceTree = "<group>"; };
+		B20000000000000000000001 /* InventoryClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryClient.swift; sourceTree = "<group>"; };
+		B20000000000000000000003 /* InventoryNotifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryNotifier.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -63,6 +67,8 @@
 				A2240AE62ADD2229006AC094 /* ContentView.swift */,
 				A2240AF62ADE5B8C006AC094 /* StoreInventoryView.swift */,
 				A2C75AB52AE103710065D12E /* ContentViewModel.swift */,
+				B20000000000000000000003 /* InventoryNotifier.swift */,
+				B20000000000000000000001 /* InventoryClient.swift */,
 				A2240AED2ADD222A006AC094 /* AppleStoreInventoryTracker.entitlements */,
 				A2328F2E2CB817E9006B3E6A /* Assets.xcassets */,
 				A2240AEA2ADD222A006AC094 /* Preview Content */,
@@ -153,6 +159,8 @@
 				A2240AE72ADD2229006AC094 /* ContentView.swift in Sources */,
 				A2240AE52ADD2229006AC094 /* AppleStoreInventoryTrackerApp.swift in Sources */,
 				A2C75AB62AE103710065D12E /* ContentViewModel.swift in Sources */,
+				B10000000000000000000003 /* InventoryNotifier.swift in Sources */,
+				B10000000000000000000001 /* InventoryClient.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

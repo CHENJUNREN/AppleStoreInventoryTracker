@@ -9,14 +9,11 @@ import SwiftUI
 
 @main
 struct AppleStoreInventoryTrackerApp: App {
+    @State private var viewModel = ContentViewModel()
+
     var body: some Scene {
-//        WindowGroup {
-//            ContentView()
-//        }
-//        .windowResizability(.contentSize)
-        
         MenuBarExtra("AppleStoreInventoryTracker", systemImage: "storefront") {
-            ContentView()
+            ContentView(vm: viewModel)
         }
         .menuBarExtraStyle(.window)
     }
