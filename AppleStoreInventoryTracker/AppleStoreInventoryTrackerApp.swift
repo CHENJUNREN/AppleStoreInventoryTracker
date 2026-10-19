@@ -12,7 +12,7 @@ struct AppleStoreInventoryTrackerApp: App {
     @State private var viewModel = ContentViewModel()
 
     var body: some Scene {
-        MenuBarExtra("AppleStoreInventoryTracker", systemImage: "storefront") {
+        MenuBarExtra("AppleStoreInventoryTracker", image: "MenuBarIcon") {
             ContentView(vm: viewModel)
         }
         .menuBarExtraStyle(.window)
