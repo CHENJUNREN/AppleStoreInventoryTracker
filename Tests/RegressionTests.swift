@@ -140,6 +140,7 @@ struct RegressionTests {
         await schedule()
         await failureRecovery()
         try urls()
+        await presentation()
         try await client()
         print("\(passed) regression scenarios passed; no external requests or notifications sent.")
     }
@@ -267,6 +268,54 @@ struct RegressionTests {
         expect(segments == ["test-key", title, body] && components.query == "sound=bell", "Bark segments and options")
         expect(stock("A")[0].id == stock("A", available: false)[0].id && stock("A")[0].id != stock("B")[0].id, "stable per-product store identity")
         pass("Bark encoding and stable list identity")
+    }
+
+    @MainActor
+    private static func presentation() async {
+        let inventory = ProductInventory(id: "MJTD4CH/A", stores: stock("MJTD4CH/A") + stock("MJTD4CH/A", available: false))
+        expect(inventory.availableStores.count == 1 && inventory.availabilitySummary == "上海 / 店?#", "summary includes only available stores")
+        expect(ProductInventory(id: "A", stores: []).availabilitySummary == "当前无门店可供取货", "zero availability text")
+        expect(inventory.purchaseURL?.absoluteString == "https://www.apple.com.cn/shop/product/mjtd4ch/a", "SKU purchase link")
+        expect(AppleProductPage.purchaseURL(for: "MJTD4CH/A?x=1") == nil, "invalid SKU cannot inject link parameters")
+        let html = #"<meta content='https://store.storeimages.cdn-apple.com/product.jpg?wid=1200&amp;hei=630' property='og:image'>"#
+        expect(AppleProductPage.imageURL(in: html)?.query == "wid=1200&hei=630", "attribute order and HTML entity decoding")
+        expect(AppleProductPage.imageURL(in: #"<meta property="og:image" content="https://example.com/not-apple.jpg">"#) == nil, "only Apple product images")
+        pass("product header summary, SKU purchase URL and image metadata parsing")
+        let selectionHTML = #"window.PRODUCT_SELECTION_BOOTSTRAP = { productSelectionData: {"products":[{"partNumber":"OTHER/A","imageKey":"wrong"},{"partNumber":"MJTD4CH/A","imageKey":"right"}],"imageDictionary":{"right":{"sources":[{"srcSet":"https://store.storeimages.cdn-apple.com/1/as-images.apple.com/is/silver?wid=940&hei=1112&fmt=png-alpha&.v=old"}]}},"label":"brace } inside string"} };"#
+        let source = AppleProductPage.productImageURL(in: selectionHTML, product: " mjtd4ch/a ")!
+        expect(source.path.hasSuffix("/silver"), "exact SKU selects its image; braces in JSON strings do not truncate data")
+        expect(AppleProductPage.productImageURL(in: selectionHTML, product: "MISSING/A") == nil, "missing SKU cannot use another variant")
+        expect(AppleProductPage.productImageURL(in: selectionHTML.replacingOccurrences(of: "store.storeimages.cdn-apple.com", with: "example.com"), product: "MJTD4CH/A") == nil, "untrusted product image rejected")
+        let thumbnail = AppleProductPage.thumbnailURL(for: source)!
+        expect(thumbnail.query == "wid=192&hei=192&fmt=png-alpha", "square 3x PNG drops old rendition token")
+        pass("exact SKU thumbnail mapping and resolution")
+
+
+        let queue = StubQueue([.init(type: "text/html", body: html), .init(status: 404, type: "text/html")])
+        StubURLProtocol.queue = queue
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubURLProtocol.self]
+        let loader = ProductImageLoader(configuration: config)
+        async let first = loader.imageURL(for: "MJTD4CH/A")
+        async let second = loader.imageURL(for: " mjtd4ch/a ")
+        let images = await (first, second)
+        expect(images.0 != nil && images.0 == images.1 && queue.requests.count == 1, "concurrent image metadata calls share one request")
+        let cached = await loader.imageURL(for: "MJTD4CH/A")
+        expect(cached == images.0 && queue.requests.count == 1, "stock refresh reuses metadata")
+        let missing = await loader.imageURL(for: "MJYC4CH/A")
+        let missingAgain = await loader.imageURL(for: "MJYC4CH/A")
+        expect(missing == nil && missingAgain == nil && queue.requests.count == 2, "failed images are cached briefly without repeated requests")
+        pass("product image metadata deduplicates, caches success and backs off on failure")
+        for status in [200, 404] {
+            let imageQueue = StubQueue([.init(type: "text/html", body: selectionHTML), .init(status: status, type: "image/png")])
+            StubURLProtocol.queue = imageQueue
+            let imageLoader = ProductImageLoader(configuration: config)
+            let selected = await imageLoader.imageURL(for: "MJTD4CH/A")
+            expect(selected == (status == 200 ? thumbnail : source), "thumbnail failure falls back to exact source")
+            expect(imageQueue.requests.count == 2 && imageQueue.requests.last?.httpMethod == "HEAD", "validate rendition without downloading full image")
+        }
+        pass("thumbnail validation and original-image fallback")
+
     }
 
     @MainActor

@@ -1,0 +1,167 @@
+import Foundation
+
+extension ProductInventory {
+    var productName: String { stores.first?.productName ?? id }
+    var availableStores: [StoreInventoryInfo] { stores.filter(\.isProductAvailable) }
+    var availabilitySummary: String {
+        let names = availableStores.map(\.storeName)
+        return names.isEmpty ? "当前无门店可供取货" : names.joined(separator: ", ")
+    }
+    var purchaseURL: URL? { AppleProductPage.purchaseURL(for: id) }
+}
+
+enum AppleProductPage {
+    /// Apple redirects this SKU URL to the matching product configuration.
+    static func purchaseURL(for product: String) -> URL? {
+        let sku = product.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard sku.range(of: "^[a-z0-9]+/a$", options: .regularExpression) != nil else { return nil }
+        var components = URLComponents(string: "https://www.apple.com.cn")!
+        components.path = "/shop/product/" + sku
+        return components.url
+    }
+
+    /// Match the exact SKU before selecting its product image (never the first variant).
+    static func productImageURL(in html: String, product: String) -> URL? {
+        guard let bootstrap = html.range(of: "window.PRODUCT_SELECTION_BOOTSTRAP"),
+              let marker = html.range(of: "productSelectionData:", range: bootstrap.upperBound..<html.endIndex),
+              let start = html[marker.upperBound...].firstIndex(of: "{") else { return nil }
+        var depth = 0
+        var quoted = false
+        var escaped = false
+        for index in html[start...].indices {
+            let character = html[index]
+            if quoted {
+                if escaped { escaped = false }
+                else if character == "\\" { escaped = true }
+                else if character == "\"" { quoted = false }
+            } else if character == "\"" { quoted = true }
+            else if character == "{" { depth += 1 }
+            else if character == "}" {
+                depth -= 1
+                if depth == 0 {
+                    let data = Data(html[start...index].utf8)
+                    guard let selection = try? JSONDecoder().decode(Selection.self, from: data),
+                          let item = selection.products.first(where: {
+                              $0.partNumber.caseInsensitiveCompare(product.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame
+                          }), let key = item.imageKey,
+                          let sources = selection.imageDictionary[key]?.sources else { return nil }
+                    return sources.compactMap { source in
+                        // srcSet can contain density descriptors or multiple renditions.
+                        guard let first = source.srcSet.split(separator: ",").first?.split(whereSeparator: { $0.isWhitespace }).first,
+                              let url = URL(string: String(first)),
+                              url.scheme == "https", url.host == "store.storeimages.cdn-apple.com" else { return nil }
+                        return url
+                    }.first
+                }
+            }
+        }
+        return nil
+    }
+
+    /// 192 pixels supplies up to 3× resolution for the unchanged 64-point cell.
+    static func thumbnailURL(for source: URL) -> URL? {
+        guard source.host == "store.storeimages.cdn-apple.com", source.path.contains("/is/"),
+              var components = URLComponents(url: source, resolvingAgainstBaseURL: false) else { return nil }
+        // The original .v rendition token did not work with changed dimensions in live checks.
+        components.queryItems = (components.queryItems ?? []).filter {
+            !["wid", "hei", "fmt", "qlt", ".v"].contains($0.name)
+        } + [URLQueryItem(name: "wid", value: "192"), URLQueryItem(name: "hei", value: "192"),
+             URLQueryItem(name: "fmt", value: "png-alpha")]
+        return components.url
+    }
+
+    private struct Selection: Decodable {
+        struct Product: Decodable { let partNumber: String; let imageKey: String? }
+        struct ProductImage: Decodable {
+            struct Source: Decodable { let srcSet: String }
+            let sources: [Source]
+        }
+        let products: [Product]
+        let imageDictionary: [String: ProductImage]
+    }
+
+    static func imageURL(in html: String) -> URL? {
+        let tags = try! NSRegularExpression(pattern: #"<meta\b[^>]*>"#, options: .caseInsensitive)
+        let attributes = try! NSRegularExpression(pattern: #"([\w:-]+)\s*=\s*["']([^"']*)["']"#, options: .caseInsensitive)
+        for match in tags.matches(in: html, range: NSRange(html.startIndex..., in: html)) {
+            guard let range = Range(match.range, in: html) else { continue }
+            let tag = String(html[range])
+            var values: [String: String] = [:]
+            for attribute in attributes.matches(in: tag, range: NSRange(tag.startIndex..., in: tag)) {
+                guard let key = Range(attribute.range(at: 1), in: tag), let value = Range(attribute.range(at: 2), in: tag) else { continue }
+                values[String(tag[key]).lowercased()] = String(tag[value])
+            }
+            guard values["property"]?.lowercased() == "og:image", let content = values["content"] else { continue }
+            let decoded = content.replacingOccurrences(of: "&amp;", with: "&")
+                .replacingOccurrences(of: "&#38;", with: "&").replacingOccurrences(of: "&#x26;", with: "&")
+            guard let url = URL(string: decoded), url.scheme == "https", let host = url.host?.lowercased(),
+                  host == "apple.com" || host.hasSuffix(".apple.com") || host.hasSuffix(".cdn-apple.com") else { continue }
+            return url
+        }
+        return nil
+    }
+}
+
+/// Product metadata is independent of stock polling; image failures must never fail a scan.
+actor ProductImageLoader {
+    static let shared = ProductImageLoader()
+    private struct CachedImage {
+        let url: URL?
+        let expiry: Date
+    }
+    private let session: URLSession
+    private var cache: [String: CachedImage] = [:]
+    private var pending: [String: Task<URL?, Never>] = [:]
+
+    init(configuration: URLSessionConfiguration = .ephemeral) {
+        configuration.timeoutIntervalForRequest = 10
+        configuration.timeoutIntervalForResource = 20
+        configuration.httpCookieStorage = nil
+        configuration.httpShouldSetCookies = false
+        session = URLSession(configuration: configuration)
+    }
+
+    deinit { session.invalidateAndCancel() }
+
+    func imageURL(for product: String) async -> URL? {
+        guard let pageURL = AppleProductPage.purchaseURL(for: product) else { return nil }
+        let key = pageURL.absoluteString
+        if let entry = cache[key], entry.expiry > Date() { return entry.url }
+        if let task = pending[key] { return await task.value }
+        let task = Task { [session] () -> URL? in
+            do {
+                let (data, response) = try await session.data(from: pageURL)
+                guard let response = response as? HTTPURLResponse, response.statusCode == 200,
+                      response.mimeType == "text/html", let finalURL = response.url,
+                      finalURL.host == "www.apple.com.cn",
+                      Self.matchesProduct(finalURL, product: product),
+                      let html = String(data: data, encoding: .utf8) else { return nil }
+                guard let source = AppleProductPage.productImageURL(in: html, product: product) else {
+                    return AppleProductPage.imageURL(in: html)
+                }
+                if let thumbnail = AppleProductPage.thumbnailURL(for: source) {
+                    var request = URLRequest(url: thumbnail)
+                    request.httpMethod = "HEAD"
+                    if let (_, check) = try? await session.data(for: request),
+                       let check = check as? HTTPURLResponse, check.statusCode == 200,
+                       check.mimeType?.hasPrefix("image/") == true {
+                        return thumbnail
+                    }
+                }
+                // A failed thumbnail rendition still leaves the exact original product image.
+                return source
+            } catch { return nil }
+        }
+        pending[key] = task
+        let url = await task.value
+        cache[key] = CachedImage(url: url, expiry: Date().addingTimeInterval(url == nil ? 300 : 86400))
+        pending[key] = nil
+        return url
+    }
+
+    private static func matchesProduct(_ url: URL, product: String) -> Bool {
+        let marker = "/" + product.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let path = url.path.lowercased()
+        return path.hasSuffix(marker) || path.contains(marker + "/")
+    }
+}

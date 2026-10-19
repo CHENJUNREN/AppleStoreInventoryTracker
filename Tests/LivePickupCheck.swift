@@ -1,6 +1,7 @@
 import Foundation
+import AppKit
 
-/// Explicit opt-in smoke test: queries Apple once through the app's actual client.
+/// Explicit opt-in smoke test: one batch pickup query plus product-page/image checks.
 /// No notification service, UI, browser, cookies or user credentials are involved.
 @main
 struct LivePickupCheck {
@@ -23,6 +24,14 @@ struct LivePickupCheck {
         }
         for inventory in result.inventories {
             print("\(inventory.id): stores=\(inventory.stores.count), pickupAvailable=\(inventory.stores.filter(\.isProductAvailable).count)")
+            guard let imageURL = await ProductImageLoader.shared.imageURL(for: inventory.id) else {
+                throw InventoryError.invalidResponse
+            }
+            let (imageData, response) = try await URLSession.shared.data(from: imageURL)
+            guard (response as? HTTPURLResponse)?.statusCode == 200, let bitmap = NSBitmapImageRep(data: imageData), bitmap.pixelsWide == 192, bitmap.pixelsHigh == 192 else {
+                throw InventoryError.invalidResponse
+            }
+            print("PASS: \(inventory.id) purchase-page redirect and 192×192 product thumbnail")
         }
         print("PASS: real native batch pickup request; no browser/session or notifications")
     }
