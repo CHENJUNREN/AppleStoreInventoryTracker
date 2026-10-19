@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ContentView: View {
     
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let vm: ContentViewModel
     @AppStorage("partNumber") private var partNumber: String = "MYLU3CH/A"
     @AppStorage("province") private var province: String = "重庆"
@@ -44,8 +45,12 @@ struct ContentView: View {
                             .font(.title2)
                             .bold()
                     } currentValueLabel: {
-                        Text("00:\(String(format: "%02d", vm.countdown - vm.countdownRemaining))")
+                        Text(vm.countdownText)
                             .bold()
+                            .monospacedDigit()
+                            .contentTransition(.numericText(countsDown: true))
+                            .animation(reduceMotion ? nil : .easeInOut(duration: 0.25),
+                                       value: vm.countdownRemaining)
                     }
                     .padding()
                     

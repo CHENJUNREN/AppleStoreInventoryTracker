@@ -30,6 +30,10 @@ final class ContentViewModel {
     private(set) var inventoryInfos: [ProductInventory] = []
     private(set) var countdownRemaining = 0
     private(set) var countdown = 0
+    var countdownText: String {
+        let remaining = max(0, countdownRemaining)
+        return String(format: "%02d:%02d", remaining / 60, remaining % 60)
+    }
     private(set) var lastError: String?
 
     @ObservationIgnored private let client: any InventoryFetching

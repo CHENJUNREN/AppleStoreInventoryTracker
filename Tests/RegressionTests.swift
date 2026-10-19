@@ -213,6 +213,24 @@ struct RegressionTests {
         timedClient.complete(1, .success(batch(["A", "B"])))
         await eventually("cleanup") { timedClient.active == 0 }
         pass("interval is N seconds, not N+1")
+
+        let minuteClient = ControlledClient(), minuteClock = ManualClock()
+        let minuteTimer = ContentViewModel(client: minuteClient, notifier: RecordingNotifier(), clock: minuteClock)
+        minuteTimer.startTracking(for: "A", location: "上海", countdown: 125, pushNotificationSettings: settings)
+        await eventually("minute timer request") { minuteClient.calls.count == 1 }
+        minuteClient.complete(0, .success(batch(["A"])))
+        await eventually("minute timer waiting") { minuteClock.waiting == 1 }
+        expect(minuteTimer.countdownText == "02:05", "125 remaining seconds must display 02:05, not elapsed seconds")
+        minuteClock.advance(65)
+        await eventually("minute boundary") { minuteTimer.countdownRemaining == 60 && minuteClock.waiting == 1 }
+        expect(minuteTimer.countdownText == "01:00", "60 remaining seconds must display 01:00")
+        minuteClock.advance(1)
+        await eventually("below minute") { minuteTimer.countdownRemaining == 59 && minuteClock.waiting == 1 }
+        expect(minuteTimer.countdownText == "00:59", "minute rollover must display 00:59")
+        minuteTimer.stopTracking()
+        expect(minuteTimer.countdownText == "00:00", "stopping clears countdown text")
+        pass("countdown label uses remaining minutes and seconds across minute boundaries")
+
     }
 
     @MainActor
