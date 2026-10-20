@@ -78,10 +78,6 @@ struct ConfigurationView: View {
         guard (!draft.barkNotification && draft.barkURL.isEmpty) || InventoryNotifier.barkURL(base: draft.barkURL, title: "test", body: "test") != nil else {
             message = "请填写有效的 http 或 https Bark URL。"; return
         }
-        // Inherited Bark settings also need a usable address when a task explicitly enables Bark.
-        guard !draft.barkURL.isEmpty || !store.tasks.contains(where: { $0.barkNotification == true }) else {
-            message = "仍有任务单独开启了 Bark，请保留有效地址或先关闭这些任务的 Bark。"; return
-        }
         store.saveDefaults(draft)
         message = "配置已保存。"
     }

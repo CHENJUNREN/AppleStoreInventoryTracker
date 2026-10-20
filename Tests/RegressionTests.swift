@@ -158,6 +158,8 @@ struct RegressionTests {
     static func main() async throws {
         await restartPresentation()
         desktopPersistence()
+        independentConfigurationSnapshots()
+        try customizationEditorState()
         cachedResultsPersistence()
         try await cachedImageRelaunch()
         await independentDesktopTasks()
@@ -250,7 +252,7 @@ struct RegressionTests {
         store.saveDefaults(defaults)
         let restored = TaskStore(preferences: preferences)
         expect(restored.tasks[0].resolved(using: restored.defaults).interval == 25, "custom interval survives default updates and relaunch")
-        expect(restored.tasks[1].resolved(using: restored.defaults).interval == 120, "inherited interval follows defaults")
+        expect(restored.tasks[1].resolved(using: restored.defaults).interval == 90, "migrated interval remains independent of defaults")
         expect(restored.validationError(for: ScanTask(product: "A")) != nil, "duplicate product and region rejected")
         var otherRegion = ScanTask(product: "A")
         otherRegion.region = ScanRegion(province: "上海", city: "上海", district: "浦东新区")
@@ -258,6 +260,79 @@ struct RegressionTests {
         restored.delete(restored.tasks[0])
         expect(TaskStore(preferences: preferences).tasks.count == 1, "deletion persists without repeating migration")
         pass("desktop migration, persistence, overrides and duplicate validation")
+    }
+
+    @MainActor
+    private static func independentConfigurationSnapshots() {
+        struct LegacySnapshot: Codable {
+            var defaults: ScanDefaults
+            var tasks: [ScanTask]
+        }
+        let suite = "InventoryIndependentSettings.\(UUID().uuidString)"
+        let preferences = UserDefaults(suiteName: suite)!
+        defer { preferences.removePersistentDomain(forName: suite) }
+        var original = ScanDefaults()
+        original.barkURL = "https://example.com/original"
+        original.barkNotification = true
+        let legacyTask = ScanTask(product: "A")
+        preferences.set(try! JSONEncoder().encode(LegacySnapshot(defaults: original, tasks: [legacyTask])), forKey: "desktopScanTasks.v1")
+        let store = TaskStore(preferences: preferences)
+        expect(store.tasks[0].barkURL == original.barkURL && store.tasks[0].region == original.region, "legacy inherited settings are frozen on load")
+        var changed = original
+        changed.region = ScanRegion(province: "上海", city: "上海", district: "长宁区")
+        changed.interval = 123
+        changed.appNotification = false
+        changed.barkNotification = false
+        changed.barkURL = "https://example.com/changed"
+        store.saveDefaults(changed)
+        expect(store.tasks[0].resolved(using: changed) == original, "all saved settings including Bark URL ignore global changes")
+        store.save(ScanTask(product: "B"), start: false)
+        expect(store.tasks[1].resolved(using: original) == changed, "new task snapshots current defaults at save")
+        var edited = original
+        edited.interval = 45
+        store.save(store.tasks[0].configured(with: edited), start: false)
+        let reopened = TaskStore(preferences: preferences)
+        expect(reopened.tasks[0].resolved(using: changed) == edited, "edited independent settings survive relaunch")
+        expect(reopened.tasks[1].resolved(using: original) == changed, "other task remains independent")
+        pass("legacy migration and independent per-task configuration snapshots")
+    }
+
+    @MainActor
+    private static func customizationEditorState() throws {
+        var defaults = ScanDefaults()
+        defaults.barkURL = "https://example.com/default"
+        var editor = ScanTaskDraft(task: ScanTask(product: "EDITOR"), defaults: defaults)
+        expect(!editor.customizationEnabled && editor.settings == defaults, "new editor starts collapsed with defaults")
+        editor.setCustomizationEnabled(true, defaults: defaults)
+        editor.settings.interval = 25
+        editor.settings.region.city = "自定义城市"
+        editor.settings.appNotification = false
+        editor.settings.barkNotification = true
+        editor.settings.barkURL = "https://example.com/custom"
+        let encoded = try JSONEncoder().encode(editor.savedTask)
+        let saved = try JSONDecoder().decode(ScanTask.self, from: encoded)
+        var reopened = ScanTaskDraft(task: saved, defaults: defaults)
+        expect(reopened.customizationEnabled && reopened.settings == editor.settings, "custom switch and fields restore after serialization")
+        defaults.interval = 120
+        defaults.barkURL = "https://example.com/new-default"
+        reopened.setCustomizationEnabled(false, defaults: defaults)
+        expect(reopened.settings == defaults && !reopened.customizationEnabled, "turning off resets every field including notification and Bark URL")
+        let suite = "InventoryEditorState.\(UUID().uuidString)"
+        let preferences = UserDefaults(suiteName: suite)!
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let store = TaskStore(preferences: preferences)
+        store.save(reopened.savedTask, start: false)
+        var newerDefaults = defaults
+        newerDefaults.interval = 999
+        store.saveDefaults(newerDefaults)
+        let restored = TaskStore(preferences: preferences)
+        let closedEditor = ScanTaskDraft(task: restored.tasks[0], defaults: restored.defaults)
+        expect(!closedEditor.customizationEnabled && closedEditor.settings == defaults, "off state and independent snapshot survive store relaunch and changed defaults")
+        reopened.setCustomizationEnabled(true, defaults: defaults)
+        let enabledWithDefaults = reopened.savedTask.frozen(using: defaults)
+        expect(enabledWithDefaults.customizationEnabled == true, "enabled state is preserved even if values equal defaults")
+        expect(saved.interval == 25, "resetting editor never changes original task before saving")
+        pass("customization switch resets all fields and persists independent editor state")
     }
 
     @MainActor

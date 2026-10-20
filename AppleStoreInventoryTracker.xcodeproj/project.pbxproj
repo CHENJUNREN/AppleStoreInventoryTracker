@@ -30,6 +30,7 @@
 		843E8B12D776461BBB775380 /* TaskStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE34A39270654AB2B0D1790D /* TaskStore.swift */; };
 		ED7767E5FBC44164A165CF56 /* TaskEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 184412B562D745EC88C0C2E2 /* TaskEditor.swift */; };
 		27648A723A1241BCA29BE394 /* ConfigurationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F0C52C8C878434ABA6EBB2B /* ConfigurationView.swift */; };
+		AD348CCAFB044D91AF410343 /* ProductNumberHelp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 615124AAE23D49EAB3B9D869 /* ProductNumberHelp.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -58,6 +59,7 @@
 		CE34A39270654AB2B0D1790D /* TaskStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskStore.swift; sourceTree = "<group>"; };
 		184412B562D745EC88C0C2E2 /* TaskEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskEditor.swift; sourceTree = "<group>"; };
 		0F0C52C8C878434ABA6EBB2B /* ConfigurationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigurationView.swift; sourceTree = "<group>"; };
+		615124AAE23D49EAB3B9D869 /* ProductNumberHelp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductNumberHelp.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -156,6 +158,7 @@
 		1B201D3B02AB4EC8A11DEFA0 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				615124AAE23D49EAB3B9D869 /* ProductNumberHelp.swift */,
 				0F0C52C8C878434ABA6EBB2B /* ConfigurationView.swift */,
 				184412B562D745EC88C0C2E2 /* TaskEditor.swift */,
 				CDEE2064242C4F82BFF675D7 /* ContentView.swift */,
@@ -236,6 +239,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AD348CCAFB044D91AF410343 /* ProductNumberHelp.swift in Sources */,
 				27648A723A1241BCA29BE394 /* ConfigurationView.swift in Sources */,
 				ED7767E5FBC44164A165CF56 /* TaskEditor.swift in Sources */,
 				843E8B12D776461BBB775380 /* TaskStore.swift in Sources */,

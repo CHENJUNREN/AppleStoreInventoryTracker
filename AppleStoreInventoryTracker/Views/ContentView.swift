@@ -122,7 +122,7 @@ private struct ScanTaskCard: View {
                         if runner.isTracking { runner.stopTracking(preservingResults: true) } else { start() }
                     }
                     iconButton("编辑", symbol: "pencil", action: edit)
-                    iconButton("删除", symbol: "trash", action: delete)
+                    iconButton("删除", symbol: "trash", color: .red, action: delete)
                     iconButton(expanded ? "收起详情" : "展开详情", symbol: expanded ? "chevron.up" : "chevron.down") {
                         withAnimation(.easeInOut(duration: 0.15)) { expanded.toggle() }
                     }
@@ -144,7 +144,7 @@ private struct ScanTaskCard: View {
         return "\(inventory.availableStores.count) 家可取货"
     }
 
-    private func iconButton(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
+    private func iconButton(_ title: String, symbol: String, color: Color = .secondary, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 13, weight: .medium))
@@ -152,7 +152,7 @@ private struct ScanTaskCard: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.borderless)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(color)
         .help(title)
         .accessibilityLabel(title)
     }
@@ -187,20 +187,6 @@ private struct ScanTaskCard: View {
                 Label(error, systemImage: "exclamationmark.triangle")
                     .foregroundStyle(.orange).textSelection(.enabled)
             }
-            HStack {
-                Text(task.product)
-                Spacer()
-                Text("每 \(effective.interval) 秒")
-                Text("通知：\(notificationSummary)")
-            }.foregroundStyle(.secondary)
-            if let date = runner.lastSuccessAt {
-                HStack {
-                    Text("更新于 \(date.formatted(date: .omitted, time: .standard))")
-                    Spacer()
-                    Text("\(runner.trackingCount) 次扫描")
-                }.foregroundStyle(.secondary)
-            }
-            if runner.isTracking { Text(runner.countdownLabel).foregroundStyle(.secondary) }
             if let inventory = runner.inventoryInfos.first {
                 ForEach(inventory.stores) { shop in
                     HStack {
@@ -210,12 +196,16 @@ private struct ScanTaskCard: View {
                             .foregroundStyle(shop.isProductAvailable && runner.isTracking && runner.hasCompletedRequest && runner.lastError == nil ? Color.green : Color.secondary)
                     }
                 }
+            } else if runner.lastError == nil {
+                Text("暂无门店信息").foregroundStyle(.secondary)
+            }
+            if let date = runner.lastSuccessAt {
+                Text("更新于 \(date.formatted(date: Calendar.current.isDateInToday(date) ? .omitted : .abbreviated, time: .standard))")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 8)
             }
         }.font(.caption)
-    }
-
-    private var notificationSummary: String {
-        let names = [effective.appNotification ? "系统" : nil, effective.barkNotification ? "Bark" : nil].compactMap { $0 }
-        return names.isEmpty ? "关闭" : names.joined(separator: "、")
     }
 }
