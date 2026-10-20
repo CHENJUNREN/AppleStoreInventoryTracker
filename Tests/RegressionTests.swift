@@ -202,14 +202,18 @@ struct RegressionTests {
         let timed = ContentViewModel(client: timedClient, notifier: RecordingNotifier(), clock: timedClock)
         timed.startTracking(for: "A,B", location: "上海", countdown: 2, pushNotificationSettings: settings)
         await eventually("timed first") { timedClient.calls.count == 1 }
+        expect(!timed.hasCompletedRequest, "first request keeps the header hidden")
         timedClient.complete(0, .success(batch(["A", "B"])))
         await eventually("sleep") { timedClock.waiting == 1 }
+        expect(timed.hasCompletedRequest, "first completed request reveals the header")
         timedClock.advance(1)
         await eventually("one second") { timed.countdownRemaining == 1 && timedClock.waiting == 1 }
         expect(timedClient.calls.count == 1, "no early request")
         timedClock.advance(1)
         await eventually("exact boundary") { timedClient.calls.count == 2 }
+        expect(timed.hasCompletedRequest, "subsequent requests preserve the countdown header")
         timed.stopTracking()
+        expect(!timed.hasCompletedRequest, "stop resets first-load state")
         timedClient.complete(1, .success(batch(["A", "B"])))
         await eventually("cleanup") { timedClient.active == 0 }
         pass("interval is N seconds, not N+1")

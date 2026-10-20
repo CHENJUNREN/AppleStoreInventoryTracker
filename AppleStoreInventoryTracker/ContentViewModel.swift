@@ -26,6 +26,7 @@ struct SystemTrackingClock: TrackingClock {
 @Observable
 final class ContentViewModel {
     private(set) var isTracking = false
+    private(set) var hasCompletedRequest = false
     private(set) var trackingCount = 0
     private(set) var inventoryInfos: [ProductInventory] = []
     private(set) var countdownRemaining = 0
@@ -73,6 +74,7 @@ final class ContentViewModel {
         lastError = nil
         self.countdown = countdown
         countdownRemaining = 0
+        hasCompletedRequest = false
         trackingTask = Task { [weak self] in
             await self?.track(ids: ids, location: location, interval: countdown,
                               settings: pushNotificationSettings, run: id)
@@ -89,6 +91,7 @@ final class ContentViewModel {
         inventoryInfos = []
         countdown = 0
         countdownRemaining = 0
+        hasCompletedRequest = false
         lastError = nil
     }
 
@@ -138,6 +141,7 @@ final class ContentViewModel {
                 : InventoryRetryPolicy.delay(interval: interval, failures: failures, retryAfter: retryAfter)
             let deadline = errors.isEmpty ? max(started + Double(interval), clock.now) : clock.now + Double(delay)
             countdown = delay
+            hasCompletedRequest = true
             do {
                 while isCurrent(run) {
                     let remaining = max(0, deadline - clock.now)

@@ -12,6 +12,7 @@ struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     let vm: ContentViewModel
+    @State private var isQuitConfirmationPresented = false
     @AppStorage("partNumber") private var partNumber: String = "MYLU3CH/A"
     @AppStorage("province") private var province: String = "重庆"
     @AppStorage("city") private var city: String = "重庆"
@@ -25,8 +26,7 @@ struct ContentView: View {
         VStack(spacing: 0) {
             mainContent
                 .frame(height: 560)
-                .modifier(PickupPanelStyle())
-                .padding([.horizontal, .top], PickupPanelStyle.inset)
+                .padding([.horizontal, .top], 12)
             actionControls
         }
         .frame(width: 350)
@@ -51,7 +51,8 @@ struct ContentView: View {
             }
             .padding(16)
         } else {
-            actionStack.padding(16)
+            actionStack
+                .padding(16)
         }
     }
 
@@ -67,17 +68,29 @@ struct ContentView: View {
     @ViewBuilder
     private var mainContent: some View {
         if vm.isTracking {
-            VStack(alignment: .leading, spacing: 0) {
-                scanStatus
-                if vm.inventoryInfos.isEmpty {
-                    ContentUnavailableView {
-                        Label("暂无数据", systemImage: "shippingbox")
-                    } description: {
-                        Text(vm.lastError == nil ? "正在查询附近门店的取货情况" : "查询暂未成功，等待自动重试")
+            if !vm.hasCompletedRequest {
+                VStack(spacing: 12) {
+                    ProgressView().controlSize(.large)
+                    Text("正在查询")
+                        .font(.headline)
+                    Text("正在查询附近门店的取货情况")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    countdownStatus
+                    if vm.inventoryInfos.isEmpty {
+                        ContentUnavailableView {
+                            Label(vm.lastError == nil ? "暂无数据" : "查询暂未成功", systemImage: "shippingbox")
+                        } description: {
+                            Text(vm.lastError == nil ? "暂无附近门店的取货信息" : "将在倒计时结束后自动重试")
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        resultList
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    resultList
                 }
             }
         } else {
@@ -85,13 +98,15 @@ struct ContentView: View {
         }
     }
 
-    private var scanStatus: some View {
+    private var countdownStatus: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("已完成 \(vm.trackingCount) 次扫描")
-                        .font(.subheadline.weight(.medium))
-                    Text(vm.countdownRemaining > 0 ? (vm.lastError == nil ? "下次查询" : "重试倒计时") : "正在查询")
+                    if vm.trackingCount > 0 {
+                        Text("已完成 \(vm.trackingCount) 次扫描")
+                            .font(.subheadline.weight(.medium))
+                    }
+                    Text(vm.lastError == nil ? "下次查询" : "重试倒计时")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -118,7 +133,6 @@ struct ContentView: View {
                 }
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                 .help("在 Apple 官网购买 \(inventoryInfo.productName)，并选择取货门店")
             }
         }
@@ -198,7 +212,11 @@ struct ContentView: View {
     
     private var quitButton: some View {
         Button(role: .destructive) {
-            // kill app
+            guard !isQuitConfirmationPresented else { return }
+            isQuitConfirmationPresented = true
+            defer { isQuitConfirmationPresented = false }
+            guard QuitConfirmation.confirm(isTracking: vm.isTracking) else { return }
+            vm.stopTracking()
             NSApplication.shared.terminate(nil)
         } label: {
             Label("退出", systemImage: "power")
@@ -209,34 +227,21 @@ struct ContentView: View {
     }
 }
 
-/// A single glass surface for the form or inventory content avoids stacking glass on each row.
-private struct PickupPanelStyle: ViewModifier {
-    static let inset: CGFloat = 12
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if #available(macOS 26.0, *) {
-            // Let the system resolve the container geometry. The minimum preserves
-            // rounded corners when concentricity would produce a nearly square corner.
-            let shape = ConcentricRectangle(corners: .concentric(minimum: 12), isUniform: true)
-            if reduceTransparency {
-                content
-                    .clipShape(shape)
-                    .background(Color(nsColor: .controlBackgroundColor), in: shape)
-                    .overlay { shape.stroke(.separator, lineWidth: 0.5) }
-            } else {
-                content
-                    .clipShape(shape)
-                    .glassEffect(.clear, in: shape)
-            }
-        } else {
-            let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
-            content
-                .clipShape(shape)
-                .background(Color(nsColor: .controlBackgroundColor), in: shape)
-                .overlay { shape.strokeBorder(.separator, lineWidth: 0.5) }
-        }
+/// An app-modal alert remains interactive even if the menu-bar window loses focus.
+@MainActor
+enum QuitConfirmation {
+    static func confirm(isTracking: Bool) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = "确定退出应用？"
+        alert.informativeText = isTracking ? "退出后将停止库存监测和通知。" : "退出后将关闭菜单栏应用。"
+        alert.alertStyle = .warning
+        let cancel = alert.addButton(withTitle: "取消")
+        cancel.keyEquivalent = "\r"
+        let quit = alert.addButton(withTitle: "退出")
+        quit.hasDestructiveAction = true
+        quit.keyEquivalent = ""
+        NSApplication.shared.activate()
+        return alert.runModal() == .alertSecondButtonReturn
     }
 }
 
