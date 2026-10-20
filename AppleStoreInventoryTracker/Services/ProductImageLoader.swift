@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 
 actor ProductImageLoader {
     static let shared = ProductImageLoader()
@@ -7,10 +8,13 @@ actor ProductImageLoader {
         let expiry: Date
     }
     private let session: URLSession
+    private let imageDirectory: URL?
+    private var imageRequests: [String: Task<Data?, Never>] = [:]
     private var cache: [String: CachedImage] = [:]
     private var pending: [String: Task<URL?, Never>] = [:]
 
-    init(configuration: URLSessionConfiguration = .ephemeral) {
+    init(configuration: URLSessionConfiguration = .ephemeral, imageDirectory: URL? = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?.appendingPathComponent("AppleStoreInventoryTracker/ProductImages", isDirectory: true)) {
+        self.imageDirectory = imageDirectory
         configuration.timeoutIntervalForRequest = 10
         configuration.timeoutIntervalForResource = 20
         configuration.httpCookieStorage = nil
@@ -54,6 +58,37 @@ actor ProductImageLoader {
         cache[key] = CachedImage(url: url, expiry: Date().addingTimeInterval(url == nil ? 300 : 86400))
         pending[key] = nil
         return url
+    }
+
+    /// Cache the actual image bytes so relaunching does not depend on the product page or network.
+    func imageData(for product: String) async -> Data? {
+        let key = product.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        let file = imageDirectory?.appendingPathComponent(key.utf8.map { String(format: "%02x", $0) }.joined() + ".image")
+        if let file, let data = try? Data(contentsOf: file), Self.isImage(data) { return data }
+        if let pending = imageRequests[key] { return await pending.value }
+        let request = Task { () -> Data? in
+            guard let url = await self.imageURL(for: key) else { return nil }
+            do {
+                let (data, response) = try await self.session.data(from: url)
+                guard let response = response as? HTTPURLResponse, response.statusCode == 200,
+                      Self.isImage(data) else { return nil }
+                if let file {
+                    try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+                    try? data.write(to: file, options: .atomic)
+                }
+                return data
+            } catch { return nil }
+        }
+        imageRequests[key] = request
+        let data = await request.value
+        imageRequests[key] = nil
+        return data
+    }
+
+    private static func isImage(_ data: Data) -> Bool {
+        guard data.count <= 10 * 1024 * 1024,
+              let image = CGImageSourceCreateWithData(data as CFData, nil) else { return false }
+        return CGImageSourceGetCount(image) > 0
     }
 
     private static func matchesProduct(_ url: URL, product: String) -> Bool {

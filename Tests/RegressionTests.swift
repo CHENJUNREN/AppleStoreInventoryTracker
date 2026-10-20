@@ -156,6 +156,12 @@ struct RegressionTests {
 
     @MainActor
     static func main() async throws {
+        await restartPresentation()
+        desktopPersistence()
+        cachedResultsPersistence()
+        try await cachedImageRelaunch()
+        await independentDesktopTasks()
+        await scheduledRequests()
         await powerLifecycle()
         pollingPolicies()
         await adaptiveSchedule()
@@ -167,6 +173,141 @@ struct RegressionTests {
         await presentation()
         try await client()
         print("\(passed) regression scenarios passed; no external requests or notifications sent.")
+    }
+
+    @MainActor
+    private static func restartPresentation() async {
+        let client = ControlledClient(), clock = ManualClock()
+        let vm = ContentViewModel(client: client, notifier: RecordingNotifier(), clock: clock)
+        vm.startTracking(for: "A", location: "上海", countdown: 60, pushNotificationSettings: settings)
+        await eventually("presentation initial fetch") { client.calls.count == 1 }
+        client.complete(0, .success(batch(["A"])))
+        await eventually("presentation initial result") { clock.waiting == 1 }
+        vm.stopTracking(preservingResults: true)
+        vm.startTracking(for: "A", location: "上海", countdown: 60, pushNotificationSettings: settings)
+        expect(!vm.inventoryInfos.isEmpty, "restarting must retain product presentation while refreshing")
+        expect(!vm.hasCompletedRequest, "retained result is not a fresh scan")
+        await eventually("presentation restart") { client.calls.count == 2 }
+        vm.stopTracking()
+        client.complete(1, .success(batch(["A"])))
+        pass("restart retains product presentation without treating cached stock as fresh")
+    }
+
+    @MainActor
+    private static func cachedResultsPersistence() {
+        let suite = "InventoryCacheTests.\(UUID().uuidString)"
+        let preferences = UserDefaults(suiteName: suite)!
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let store = TaskStore(preferences: preferences)
+        let task = ScanTask(product: "A", appNotification: false, barkNotification: false)
+        store.save(task, start: false)
+        let date = Date(timeIntervalSince1970: 123456)
+        store.runner(for: task.id).onResult?(CachedScanResult(inventories: batch(["A"]).inventories,
+            location: store.defaults.region.location, updatedAt: date))
+        let reopened = TaskStore(preferences: preferences)
+        let runner = reopened.runner(for: task.id)
+        expect(runner.inventoryInfos.first?.id == "A" && runner.lastSuccessAt == date, "relaunch restores product data and original timestamp")
+        expect(!runner.isTracking && !runner.hasCompletedRequest, "restored results never look like a fresh scan")
+        var changed = task
+        changed.product = "B"
+        reopened.save(changed, start: false)
+        expect(reopened.runner(for: task.id).inventoryInfos.isEmpty, "editing SKU invalidates previous product")
+        expect(TaskStore(preferences: preferences).runner(for: task.id).inventoryInfos.isEmpty, "invalidated product is not restored on relaunch")
+        pass("cached results survive relaunch, remain stale and invalidate on SKU changes")
+    }
+
+    private static func cachedImageRelaunch() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=")!
+        // On-disk fixture from a prior launch; no metadata or image network request is needed.
+        try png.write(to: directory.appendingPathComponent("41.image"))
+        let first = ProductImageLoader(imageDirectory: directory)
+        let restored = await first.imageData(for: "A")
+        let relaunched = ProductImageLoader(imageDirectory: directory)
+        let again = await relaunched.imageData(for: " a ")
+        expect(restored == png && again == png, "image bytes survive loader recreation and normalize SKU")
+        pass("disk image cache restores actual image bytes without network access")
+    }
+
+    @MainActor
+    private static func desktopPersistence() {
+        let suite = "InventoryDesktopTests.\(UUID().uuidString)"
+        let preferences = UserDefaults(suiteName: suite)!
+        defer { preferences.removePersistentDomain(forName: suite) }
+        preferences.set(" a, B，a ", forKey: "partNumber")
+        preferences.set(90, forKey: "countdown")
+        let store = TaskStore(preferences: preferences)
+        expect(store.tasks.map(\.product) == ["A", "B"], "legacy products migrate individually and deduplicate")
+        expect(store.defaults.interval == 90 && store.runningCount == 0, "migration preserves interval without auto starting")
+        var task = store.tasks[0]
+        task.interval = 25
+        task.appNotification = false
+        store.save(task, start: false)
+        var defaults = store.defaults
+        defaults.interval = 120
+        store.saveDefaults(defaults)
+        let restored = TaskStore(preferences: preferences)
+        expect(restored.tasks[0].resolved(using: restored.defaults).interval == 25, "custom interval survives default updates and relaunch")
+        expect(restored.tasks[1].resolved(using: restored.defaults).interval == 120, "inherited interval follows defaults")
+        expect(restored.validationError(for: ScanTask(product: "A")) != nil, "duplicate product and region rejected")
+        var otherRegion = ScanTask(product: "A")
+        otherRegion.region = ScanRegion(province: "上海", city: "上海", district: "浦东新区")
+        expect(restored.validationError(for: otherRegion) == nil, "same product in different region accepted")
+        restored.delete(restored.tasks[0])
+        expect(TaskStore(preferences: preferences).tasks.count == 1, "deletion persists without repeating migration")
+        pass("desktop migration, persistence, overrides and duplicate validation")
+    }
+
+    @MainActor
+    private static func independentDesktopTasks() async {
+        let clientA = ControlledClient(), clientB = ControlledClient()
+        let clockA = ManualClock(), clockB = ManualClock()
+        let a = ContentViewModel(client: clientA, notifier: RecordingNotifier(), clock: clockA)
+        let b = ContentViewModel(client: clientB, notifier: RecordingNotifier(), clock: clockB)
+        var defaults = ScanDefaults()
+        defaults.appNotification = false
+        a.configurationProvider = { defaults }
+        a.startTracking(for: "A", location: "old", countdown: 60, pushNotificationSettings: settings)
+        b.startTracking(for: "B", location: "B region", countdown: 90, pushNotificationSettings: settings)
+        await eventually("independent starts") { clientA.calls.count == 1 && clientB.calls.count == 1 }
+        clientA.complete(0, .success(batch(["A"])))
+        clientB.complete(0, .success(batch(["B"])))
+        await eventually("independent waits") { clockA.waiting == 1 && clockB.waiting == 1 }
+        defaults.region = ScanRegion(province: "上海", city: "上海", district: "浦东新区")
+        defaults.interval = 10
+        b.stopTracking(preservingResults: true)
+        expect(!b.inventoryInfos.isEmpty && b.lastSuccessAt != nil && a.isTracking, "stop retains last result and does not stop another task")
+        clockA.advance(15)
+        await eventually("changed defaults next round") { clientA.calls.count == 2 }
+        expect(clientA.locations[1] == defaults.region.location, "next round resolves new region")
+        clientA.complete(1, .success(batch(["A"])))
+        await eventually("new interval") { clockA.waiting == 1 && a.countdownRemaining == 10 }
+        a.stopTracking()
+        pass("independent tasks, retained results and next-round default changes")
+    }
+
+    @MainActor
+    private static func scheduledRequests() async {
+        let underlying = ControlledClient()
+        let scheduler = ScheduledInventoryClient(client: underlying, limit: 1)
+        let first = Task { try await scheduler.fetchPickupInventory(for: ["A"], location: "A") }
+        await eventually("scheduler active") { underlying.calls.count == 1 }
+        let cancelled = Task { try await scheduler.fetchPickupInventory(for: ["B"], location: "B") }
+        for _ in 0..<10 { await Task.yield() }
+        cancelled.cancel()
+        let third = Task { try await scheduler.fetchPickupInventory(for: ["C"], location: "C") }
+        for _ in 0..<10 { await Task.yield() }
+        expect(underlying.calls.count == 1, "request budget holds queued requests")
+        underlying.complete(0, .success(batch(["A"])))
+        _ = try? await first.value
+        _ = try? await cancelled.value
+        await eventually("scheduler skips cancellation") { underlying.calls.count == 2 }
+        expect(underlying.calls[1] == ["C"] && underlying.maxActive == 1, "cancelled queued request never reaches network")
+        underlying.complete(1, .success(batch(["C"])))
+        _ = try? await third.value
+        pass("shared request budget and queued cancellation")
     }
 
     @MainActor

@@ -2,54 +2,62 @@ import SwiftUI
 
 struct ProductInventoryHeader: View {
     let inventory: ProductInventory
-    @State private var imageURL: URL?
+    var title: String? = nil
+    var summary: String? = nil
+    var highlightedAvailability: String? = nil
+    @State private var productImage: NSImage?
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            AsyncImage(url: imageURL) { phase in
-                if let image = phase.image {
-                    image.resizable().interpolation(.high).scaledToFill()
+        HStack(alignment: .center, spacing: 12) {
+            Group {
+                if let productImage {
+                    Image(nsImage: productImage).resizable().interpolation(.high).scaledToFit()
                 } else {
-                    Image(systemName: "photo")
+                    Image(systemName: "shippingbox")
                         .font(.title2)
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(.tertiary)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .frame(width: 64, height: 64)
+            .frame(width: 52, height: 52)
             .background(.white)
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(inventory.productName)
+                    Text(title ?? inventory.productName)
                         .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)
+                    if summary == nil {
                     Text("(\(inventory.availableStores.count))")
                         .foregroundStyle(inventory.availableStores.isEmpty ? .red : .green)
                         .fixedSize()
+                    }
                 }
                 .font(.subheadline.weight(.semibold))
 
-                Text(inventory.availabilitySummary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(nil)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
+                Group {
+                    if let highlightedAvailability {
+                        Text("\(Text(summary ?? "").foregroundStyle(.secondary)) · \(Text(Image(systemName: "checkmark.circle.fill")).foregroundStyle(.green)) \(Text(highlightedAvailability).foregroundStyle(.green).fontWeight(.semibold))")
+                    } else {
+                        Text(summary ?? inventory.availabilitySummary).foregroundStyle(.secondary)
+                    }
+                }
+                .font(.caption)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
         .padding(.vertical, 6)
         .contentShape(Rectangle())
         .task(id: inventory.id) {
-            imageURL = nil
-            let url = await ProductImageLoader.shared.imageURL(for: inventory.id)
-            guard !Task.isCancelled else { return }
-            imageURL = url
+            guard let data = await ProductImageLoader.shared.imageData(for: inventory.id), !Task.isCancelled else { return }
+            productImage = NSImage(data: data)
         }
     }
 }

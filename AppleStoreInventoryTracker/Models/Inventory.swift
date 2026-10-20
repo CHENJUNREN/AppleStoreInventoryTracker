@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct StoreInventoryInfo: Identifiable, Hashable {
+struct StoreInventoryInfo: Identifiable, Hashable, Codable {
     let productId: String
     let storeNumber: String
     var id: String { "\(productId):\(storeNumber)" }
@@ -27,7 +27,13 @@ struct StoreInventoryInfo: Identifiable, Hashable {
     }
 }
 
-struct ProductInventory: Identifiable {
+struct ProductInventory: Identifiable, Codable {
     let id: String
     let stores: [StoreInventoryInfo]
+}
+
+struct CachedScanResult: Codable {
+    let inventories: [ProductInventory]
+    let location: String
+    let updatedAt: Date
 }

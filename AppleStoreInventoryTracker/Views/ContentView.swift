@@ -1,228 +1,221 @@
-//
-//  ContentView.swift
-//  AppleStoreInventoryTracker
-//
-//  Created by Chenjun Ren on 2023/10/16.
-//
-
 import SwiftUI
 
 struct ContentView: View {
-    
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    let vm: ContentViewModel
-    @State private var isQuitConfirmationPresented = false
-    @AppStorage("partNumber") private var partNumber: String = "MYLU3CH/A"
-    @AppStorage("province") private var province: String = "重庆"
-    @AppStorage("city") private var city: String = "重庆"
-    @AppStorage("district") private var district: String = "九龙坡区"
-    @AppStorage("countdown") private var countdown: Int = 60
-    @AppStorage("barkPushUrl") private var barkPushUrl: String = ""
-    @AppStorage("isAppNotificationOn") private var isAppNotificationOn: Bool = true
-    @AppStorage("isBarkNotificationOn") private var isBarkNotificationOn: Bool = true
-    
+    let store: TaskStore
+    @State private var selection = "monitor"
+    @State private var editing: ScanTask?
+    @State private var deleting: ScanTask?
+    @State private var actionError: String?
+
     var body: some View {
+        NavigationSplitView {
+            List(selection: $selection) {
+                Label(" 产品库存监控", systemImage: "shippingbox").tag("monitor")
+                Label("配置", systemImage: "slider.horizontal.3").tag("settings")
+            }
+            .navigationSplitViewColumnWidth(min: 160, ideal: 190, max: 240)
+        } detail: {
+            Group {
+                if selection == "settings" {
+                    ConfigurationView(store: store)
+                } else {
+                    monitoringPage
+                }
+            }
+            .navigationTitle(selection == "settings" ? "配置" : " 产品库存监控")
+        }
+        .frame(minWidth: 780, minHeight: 520)
+        .sheet(item: $editing) { task in TaskEditor(store: store, initial: task) }
+        .alert("删除扫描任务？", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } })) {
+            Button("取消", role: .cancel) { deleting = nil }
+            Button("删除", role: .destructive) {
+                if let task = deleting { store.delete(task) }
+                deleting = nil
+            }
+        } message: { Text("该任务的扫描将停止，保存的配置将被删除。") }
+        .alert("无法开始扫描", isPresented: Binding(get: { actionError != nil }, set: { if !$0 { actionError = nil } })) {
+            Button("好") { actionError = nil }
+        } message: { Text(actionError ?? "") }
+    }
+
+    private var monitoringPage: some View {
         VStack(spacing: 0) {
-            mainContent
-                .frame(height: 560)
-                .padding([.horizontal, .top], 12)
-            actionControls
-        }
-        .frame(width: 350)
-        // Leave the system menu-window material visible behind the glass controls.
-        // Only reduced-transparency mode needs an opaque backing across the whole panel.
-        .background {
-            if reduceTransparency {
-                Color(nsColor: .windowBackgroundColor)
+            if let error = store.storageError {
+                Text(error).foregroundStyle(.red).padding()
             }
-        }
-        .tint(.blue)
-        .onAppear {
-            vm.requestUNAuthorization()
-        }
-    }
-    
-    @ViewBuilder
-    private var actionControls: some View {
-        if #available(macOS 26.0, *) {
-            GlassEffectContainer(spacing: 12) {
-                actionStack
-            }
-            .padding(16)
-        } else {
-            actionStack
-                .padding(16)
-        }
-    }
-
-    private var actionStack: some View {
-        VStack(spacing: 12) {
-            actionButton
-            quitButton
-        }
-        .controlSize(.large)
-        .buttonBorderShape(.capsule)
-    }
-
-    @ViewBuilder
-    private var mainContent: some View {
-        if vm.isTracking {
-            if !vm.hasCompletedRequest {
-                VStack(spacing: 12) {
-                    ProgressView().controlSize(.large)
-                    Text("正在查询")
-                        .font(.headline)
-                    Text("正在查询附近门店的取货情况")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+            if store.tasks.isEmpty {
+                ContentUnavailableView {
+                    Label("添加第一个产品", systemImage: "shippingbox")
+                } description: {
+                    Text("添加型号，开始监测到店取货库存。")
+                } actions: {
+                    Button("添加产品", systemImage: "plus") { editing = ScanTask() }
+                        .buttonStyle(.borderedProminent).disabled(store.storageError != nil)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                VStack(alignment: .leading, spacing: 0) {
-                    countdownStatus
-                    if vm.inventoryInfos.isEmpty {
-                        ContentUnavailableView {
-                            Label(vm.lastError == nil ? "暂无数据" : "查询暂未成功", systemImage: "shippingbox")
-                        } description: {
-                            Text(vm.lastError == nil ? "暂无附近门店的取货信息" : "将在倒计时结束后自动重试")
+                ScrollView {
+                    LazyVStack(spacing: 14) {
+                        ForEach(store.tasks) { task in
+                            ScanTaskCard(task: task, defaults: store.defaults, runner: store.runner(for: task.id),
+                                         start: {
+                                if let error = store.validationError(for: task) { actionError = error }
+                                else { store.start(task) }
+                            }, edit: { editing = task }, delete: { deleting = task })
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else {
-                        resultList
-                    }
+                    }.padding(24)
                 }
             }
-        } else {
-            formSheet
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(nsColor: store.tasks.isEmpty ? .textBackgroundColor : .underPageBackgroundColor))
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button("添加产品", systemImage: "plus") { editing = ScanTask() }
+                    .keyboardShortcut("n").disabled(store.storageError != nil)
+            }
+        }
+    }
+}
+
+private struct ScanTaskCard: View {
+    let task: ScanTask
+    let defaults: ScanDefaults
+    let runner: ContentViewModel
+    let start: () -> Void
+    let edit: () -> Void
+    let delete: () -> Void
+    @State private var expanded = false
+    private var effective: ScanDefaults { task.resolved(using: defaults) }
+
+    private var regionLabel: String {
+        let region = effective.region
+        return "\(region.city) · \(region.district)"
     }
 
-    private var countdownStatus: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: 4) {
-                    if vm.trackingCount > 0 {
-                        Text("已完成 \(vm.trackingCount) 次扫描")
-                            .font(.subheadline.weight(.medium))
-                    }
-                    Text(vm.countdownLabel)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Text(vm.countdownText)
-                    .font(.system(.title3, design: .rounded).weight(.semibold))
-                    .monospacedDigit()
-                    .contentTransition(.numericText(countsDown: true))
-                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.25),
-                               value: vm.countdownRemaining)
-            }
-            ProgressView(value: Double(max(0, vm.countdown - vm.countdownRemaining)),
-                         total: Double(max(1, vm.countdown)))
-                .accessibilityLabel("等待下一次查询")
-        }
-        .padding(16)
+    private var status: String {
+        if runner.isQuerying { return "查询中" }
+        if runner.lastError != nil { return "等待重试" }
+        if runner.isTracking { return runner.countdownText }
+        return runner.hasStarted ? "已停止" : "未开始"
     }
 
-    private var resultList: some View {
-        List {
-            ForEach(vm.inventoryInfos) { inventoryInfo in
-                purchaseEntry(for: inventoryInfo) {
-                    ProductInventoryHeader(inventory: inventoryInfo)
+    private var stockSummary: String {
+        guard let inventory = runner.inventoryInfos.first else { return regionLabel }
+        let stock = inventory.availableStores.isEmpty ? "暂无现货" : "\(inventory.availableStores.count) 家可取货"
+        let stale = !runner.isTracking || !runner.hasCompletedRequest || runner.lastError != nil ? " · 上次结果" : ""
+        return "\(regionLabel) · \(stock)\(stale)"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 16) {
+                product
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(status)
+                    .font(.caption).monospacedDigit()
+                    .frame(width: 64, alignment: .trailing)
+                    .foregroundStyle(runner.lastError == nil ? Color.secondary : Color.orange)
+                    .help(runner.isTracking ? runner.countdownLabel : status)
+                    .accessibilityLabel(runner.isTracking && !runner.isQuerying ? "\(runner.countdownLabel)，\(status)" : status)
+                HStack(spacing: 6) {
+                    iconButton(runner.isTracking ? "停止扫描" : "开始扫描", symbol: runner.isTracking ? "stop.fill" : "play.fill") {
+                        if runner.isTracking { runner.stopTracking(preservingResults: true) } else { start() }
+                    }
+                    iconButton("编辑", symbol: "pencil", action: edit)
+                    iconButton("删除", symbol: "trash", action: delete)
+                    iconButton(expanded ? "收起详情" : "展开详情", symbol: expanded ? "chevron.up" : "chevron.down") {
+                        withAnimation(.easeInOut(duration: 0.15)) { expanded.toggle() }
+                    }
+                    .accessibilityValue(expanded ? "已展开" : "已收起")
                 }
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-                .help("在 Apple 官网购买 \(inventoryInfo.productName)，并选择取货门店")
+            }
+            if expanded {
+                Divider().padding(.vertical, 16)
+                details
             }
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
+        .padding(20)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
     }
-    
+
+    private var highlightedAvailability: String? {
+        guard runner.isTracking, runner.hasCompletedRequest, runner.lastError == nil,
+              let inventory = runner.inventoryInfos.first, !inventory.availableStores.isEmpty else { return nil }
+        return "\(inventory.availableStores.count) 家可取货"
+    }
+
+    private func iconButton(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 13, weight: .medium))
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .foregroundStyle(.secondary)
+        .help(title)
+        .accessibilityLabel(title)
+    }
+
     @ViewBuilder
-    private func purchaseEntry<Content: View>(for inventory: ProductInventory,
-                                               @ViewBuilder content: () -> Content) -> some View {
-        if let url = inventory.purchaseURL {
-            Link(destination: url, label: content)
-                .buttonStyle(.plain)
-        } else {
-            content()
-        }
-    }
-
-    private var formSheet: some View {
-        Form {
-            Section {
-                TextField("型号", text: $partNumber)
-            } header: {
-                Label("产品信息", systemImage: "bag")
-            } footer: {
-                Label("如需监控多个产品, 请使用 **逗号** 分隔", systemImage: "info.circle")
-                    .foregroundStyle(.secondary)
-            }
-
-            Section {
-                TextField("省份", text: $province)
-                TextField("城镇/城市", text: $city)
-                TextField("区", text: $district)
-            } header: {
-                Label("所在地区", systemImage: "mappin.and.ellipse")
-            }
-            
-            Section {
-                TextField("秒", value: $countdown, format: .number)
-            } header: {
-                Label("扫描间隔时间", systemImage: "timer")
-            }
-            
-            Section {
-                Toggle("App", isOn: $isAppNotificationOn)
-                Toggle("Bark", isOn: $isBarkNotificationOn)
-                if isBarkNotificationOn {
-                    TextField("Bark URL", text: $barkPushUrl, prompt: Text("https://api.day.app/{Key}/"))
-                }
-            } header: {
-                Label("通知推送", systemImage: "bell")
-            }
-        }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
-    }
-    
-    private var actionButton: some View {
-        Button(role: vm.isTracking ? .cancel : nil, action: {
-            if vm.isTracking {
-                vm.stopTracking()
+    private var product: some View {
+        if let inventory = runner.inventoryInfos.first {
+            if let url = inventory.purchaseURL {
+                Link(destination: url) {
+                    ProductInventoryHeader(inventory: inventory, title: task.name.isEmpty ? nil : task.name, summary: highlightedAvailability == nil ? stockSummary : regionLabel, highlightedAvailability: highlightedAvailability)
+                }.buttonStyle(.plain).help("在 Apple 官网查看产品")
             } else {
-                vm.startTracking(
-                    for: partNumber,
-                    location: [province, city, district].joined(separator: " "),
-                    countdown: countdown,
-                    pushNotificationSettings: (isAppNotificationOn, isBarkNotificationOn, barkPushUrl)
-                )
+                ProductInventoryHeader(inventory: inventory, title: task.name.isEmpty ? nil : task.name, summary: highlightedAvailability == nil ? stockSummary : regionLabel, highlightedAvailability: highlightedAvailability)
             }
-        }, label: {
-            Label(vm.isTracking ? "停止" : "开始", systemImage: vm.isTracking ? "stop.fill" : "play.fill")
-                .padding(.vertical, 10)
-                .frame(maxWidth: .infinity)
-        })
-        .modifier(PickupControlStyle(prominent: !vm.isTracking, tint: vm.isTracking ? .gray : .blue))
-    }
-    
-    private var quitButton: some View {
-        Button(role: .destructive) {
-            guard !isQuitConfirmationPresented else { return }
-            isQuitConfirmationPresented = true
-            defer { isQuitConfirmationPresented = false }
-            guard QuitConfirmation.confirm(isTracking: vm.isTracking) else { return }
-            vm.stopTracking()
-            NSApplication.shared.terminate(nil)
-        } label: {
-            Label("退出", systemImage: "power")
-                .padding(.vertical, 10)
-                .frame(maxWidth: .infinity)
+        } else {
+            HStack(spacing: 12) {
+                Image(systemName: "shippingbox").font(.title2).foregroundStyle(.tertiary)
+                    .frame(width: 52, height: 52)
+                    .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(task.name.isEmpty ? task.product : task.name).font(.headline).lineLimit(2)
+                    Text(regionLabel).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            .padding(.vertical, 6)
         }
-        .modifier(PickupControlStyle(prominent: true, tint: .red))
+    }
+
+    private var details: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let error = runner.lastError {
+                Label(error, systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.orange).textSelection(.enabled)
+            }
+            HStack {
+                Text(task.product)
+                Spacer()
+                Text("每 \(effective.interval) 秒")
+                Text("通知：\(notificationSummary)")
+            }.foregroundStyle(.secondary)
+            if let date = runner.lastSuccessAt {
+                HStack {
+                    Text("更新于 \(date.formatted(date: .omitted, time: .standard))")
+                    Spacer()
+                    Text("\(runner.trackingCount) 次扫描")
+                }.foregroundStyle(.secondary)
+            }
+            if runner.isTracking { Text(runner.countdownLabel).foregroundStyle(.secondary) }
+            if let inventory = runner.inventoryInfos.first {
+                ForEach(inventory.stores) { shop in
+                    HStack {
+                        Text(shop.storeName)
+                        Spacer()
+                        Label(shop.isProductAvailable ? "可取货" : "暂无现货", systemImage: shop.isProductAvailable ? "checkmark.circle.fill" : "minus.circle")
+                            .foregroundStyle(shop.isProductAvailable && runner.isTracking && runner.hasCompletedRequest && runner.lastError == nil ? Color.green : Color.secondary)
+                    }
+                }
+            }
+        }.font(.caption)
+    }
+
+    private var notificationSummary: String {
+        let names = [effective.appNotification ? "系统" : nil, effective.barkNotification ? "Bark" : nil].compactMap { $0 }
+        return names.isEmpty ? "关闭" : names.joined(separator: "、")
     }
 }

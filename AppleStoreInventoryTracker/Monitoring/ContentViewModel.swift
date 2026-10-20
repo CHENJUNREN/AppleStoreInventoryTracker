@@ -12,6 +12,8 @@ import Observation
 @Observable
 final class ContentViewModel {
     private(set) var isTracking = false
+    private(set) var isQuerying = false
+    private(set) var hasStarted = false
     private(set) var hasCompletedRequest = false
     private(set) var pollingPhase: InventoryPollingPolicy.Phase = .regular
     private(set) var trackingCount = 0
@@ -31,6 +33,10 @@ final class ContentViewModel {
         }
     }
     private(set) var lastError: String?
+    private(set) var lastSuccessAt: Date?
+    @ObservationIgnored var onResult: ((CachedScanResult) -> Void)?
+    @ObservationIgnored private var resultLocation: String?
+    @ObservationIgnored var configurationProvider: (() -> ScanDefaults)?
 
     @ObservationIgnored private let client: any InventoryFetching
     @ObservationIgnored private let notifier: any InventoryNotifying
@@ -46,6 +52,13 @@ final class ContentViewModel {
         self.notifier = notifier ?? InventoryNotifier()
         self.clock = clock ?? SystemTrackingClock()
         self.activity = activity ?? MonitoringActivity()
+    }
+
+    func restore(_ result: CachedScanResult) {
+        guard !isTracking else { return }
+        inventoryInfos = result.inventories
+        lastSuccessAt = result.updatedAt
+        resultLocation = result.location
     }
 
     func requestUNAuthorization() { notifier.requestAuthorization() }
@@ -68,8 +81,13 @@ final class ContentViewModel {
         runID = id
         activity.begin()
         isTracking = true
+        hasStarted = true
+        if resultLocation != location || Set(inventoryInfos.map(\.id)) != Set(ids) {
+            inventoryInfos = []
+            lastSuccessAt = nil
+        }
+        resultLocation = location
         trackingCount = 0
-        inventoryInfos = []
         lastError = nil
         self.countdown = countdown
         countdownRemaining = 0
@@ -81,17 +99,21 @@ final class ContentViewModel {
         }
     }
 
-    func stopTracking() {
+    func stopTracking(preservingResults: Bool = false) {
         runID = nil
         isTracking = false
+        isQuerying = false
         activity.end()
         trackingTask?.cancel()
         trackingTask = nil
         notificationTask?.cancel()
         notificationTask = nil
         notifier.cancel()
-        trackingCount = 0
-        inventoryInfos = []
+        if !preservingResults {
+            trackingCount = 0
+            inventoryInfos = []
+            lastSuccessAt = nil
+        }
         countdown = 0
         countdownRemaining = 0
         hasCompletedRequest = false
@@ -105,10 +127,25 @@ final class ContentViewModel {
 
     private func track(ids: [String], location: String, interval: Int,
                        settings: PushNotificationSettings, run: UUID) async {
-        var previous: [String: ProductInventory] = [:]
+        var previous = Dictionary(uniqueKeysWithValues: inventoryInfos.map { ($0.id, $0) })
         var failures = 0
+        var previousLocation = location
         var polling = InventoryPollingPolicy()
         while isCurrent(run) {
+            let configuration = configurationProvider?()
+            let location = configuration?.region.location ?? location
+            let interval = configuration?.interval ?? interval
+            let settings: PushNotificationSettings = configuration.map { ($0.appNotification, $0.barkNotification, $0.barkURL) } ?? settings
+            if location != previousLocation {
+                previous = [:]
+                inventoryInfos = []
+                lastSuccessAt = nil
+                polling = InventoryPollingPolicy()
+                failures = 0
+                previousLocation = location
+                resultLocation = location
+            }
+            isQuerying = true
             let started = clock.now
             var fresh: [ProductInventory] = []
             var errors: [String] = []
@@ -132,9 +169,13 @@ final class ContentViewModel {
                 let rhs = $1.stores.first?.productName ?? $1.id
                 return lhs == rhs ? $0.id < $1.id : lhs < rhs
             }
+            isQuerying = false
             lastError = errors.isEmpty ? nil : errors.joined(separator: "；")
             if let lastError { print("[Inventory] \(lastError)") }
             if errors.isEmpty {
+                lastSuccessAt = Date()
+                resultLocation = location
+                onResult?(CachedScanResult(inventories: inventoryInfos, location: location, updatedAt: lastSuccessAt!))
                 trackingCount += 1
                 failures = 0
             } else {
