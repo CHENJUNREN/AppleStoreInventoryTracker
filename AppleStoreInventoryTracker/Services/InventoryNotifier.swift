@@ -13,6 +13,7 @@ protocol InventoryNotifying {
 @MainActor
 final class InventoryNotifier: InventoryNotifying {
     private var pendingNotifications: [String: Date] = [:]
+    private var notificationPolicy = InventoryNotificationPolicy()
     private let session: URLSession
 
     init() {
@@ -31,6 +32,7 @@ final class InventoryNotifier: InventoryNotifying {
     }
 
     func cancel() {
+        notificationPolicy = InventoryNotificationPolicy()
         guard !pendingNotifications.isEmpty else { return }
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: Array(pendingNotifications.keys))
         pendingNotifications.removeAll()
@@ -42,7 +44,8 @@ final class InventoryNotifier: InventoryNotifying {
         for inventory in inventories {
             guard !Task.isCancelled else { return }
             let available = inventory.stores.filter(\.isProductAvailable)
-            guard let first = available.first else { continue }
+            guard notificationPolicy.shouldNotify(inventory, now: ProcessInfo.processInfo.systemUptime),
+                  let first = available.first else { continue }
             let title = first.productName + "(\(available.count))‼️"
             let body = available.map(\.storeName).joined(separator: ", ")
             if settings.isAppNotificationOn {

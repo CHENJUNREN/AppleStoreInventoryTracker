@@ -106,7 +106,7 @@ struct ContentView: View {
                         Text("已完成 \(vm.trackingCount) 次扫描")
                             .font(.subheadline.weight(.medium))
                     }
-                    Text(vm.lastError == nil ? "下次查询" : "重试倒计时")
+                    Text(vm.countdownLabel)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -224,102 +224,5 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity)
         }
         .modifier(PickupControlStyle(prominent: true, tint: .red))
-    }
-}
-
-/// An app-modal alert remains interactive even if the menu-bar window loses focus.
-@MainActor
-enum QuitConfirmation {
-    static func confirm(isTracking: Bool) -> Bool {
-        let alert = NSAlert()
-        alert.messageText = "确定退出应用？"
-        alert.informativeText = isTracking ? "退出后将停止库存监测和通知。" : "退出后将关闭菜单栏应用。"
-        alert.alertStyle = .warning
-        let cancel = alert.addButton(withTitle: "取消")
-        cancel.keyEquivalent = "\r"
-        let quit = alert.addButton(withTitle: "退出")
-        quit.hasDestructiveAction = true
-        quit.keyEquivalent = ""
-        NSApplication.shared.activate()
-        return alert.runModal() == .alertSecondButtonReturn
-    }
-}
-
-/// Use native glass only for actions; older systems and reduced transparency use solid controls.
-private struct PickupControlStyle: ViewModifier {
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    let prominent: Bool
-    let tint: Color
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if #available(macOS 26.0, *), !reduceTransparency {
-            content
-                .buttonStyle(.glass(.clear))
-                .tint(tint)
-                .foregroundStyle(tint)
-        } else if prominent {
-            content.buttonStyle(.borderedProminent).tint(tint)
-        } else {
-            content.buttonStyle(.bordered).tint(tint)
-        }
-    }
-}
-
-//#Preview {
-//    ContentView()
-//}
-
-struct ProductInventoryHeader: View {
-    let inventory: ProductInventory
-    @State private var imageURL: URL?
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            AsyncImage(url: imageURL) { phase in
-                if let image = phase.image {
-                    image.resizable().interpolation(.high).scaledToFill()
-                } else {
-                    Image(systemName: "photo")
-                        .font(.title2)
-                        .foregroundStyle(.gray)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-            }
-            .frame(width: 64, height: 64)
-            .background(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(inventory.productName)
-                        .foregroundStyle(.primary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text("(\(inventory.availableStores.count))")
-                        .foregroundStyle(inventory.availableStores.isEmpty ? .red : .green)
-                        .fixedSize()
-                }
-                .font(.subheadline.weight(.semibold))
-
-                Text(inventory.availabilitySummary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(nil)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .fixedSize(horizontal: false, vertical: true)
-        .padding(.vertical, 6)
-        .contentShape(Rectangle())
-        .task(id: inventory.id) {
-            imageURL = nil
-            let url = await ProductImageLoader.shared.imageURL(for: inventory.id)
-            guard !Task.isCancelled else { return }
-            imageURL = url
-        }
     }
 }

@@ -9,24 +9,11 @@ import Foundation
 import Observation
 
 @MainActor
-protocol TrackingClock {
-    var now: TimeInterval { get }
-    func sleep(seconds: TimeInterval) async throws
-}
-
-@MainActor
-struct SystemTrackingClock: TrackingClock {
-    var now: TimeInterval { ProcessInfo.processInfo.systemUptime }
-    func sleep(seconds: TimeInterval) async throws {
-        try await Task.sleep(for: .seconds(seconds))
-    }
-}
-
-@MainActor
 @Observable
 final class ContentViewModel {
     private(set) var isTracking = false
     private(set) var hasCompletedRequest = false
+    private(set) var pollingPhase: InventoryPollingPolicy.Phase = .regular
     private(set) var trackingCount = 0
     private(set) var inventoryInfos: [ProductInventory] = []
     private(set) var countdownRemaining = 0
@@ -35,6 +22,14 @@ final class ContentViewModel {
         let remaining = max(0, countdownRemaining)
         return String(format: "%02d:%02d", remaining / 60, remaining % 60)
     }
+    var countdownLabel: String {
+        if lastError != nil { return "查询失败，等待重试" }
+        switch pollingPhase {
+        case .regular: return "下次查询"
+        case .accelerated: return "加速查询中 · 下次查询"
+        case .observing: return "观察库存变化 · 下次查询"
+        }
+    }
     private(set) var lastError: String?
 
     @ObservationIgnored private let client: any InventoryFetching
@@ -42,6 +37,7 @@ final class ContentViewModel {
     @ObservationIgnored private let clock: any TrackingClock
     @ObservationIgnored private var trackingTask: Task<Void, Never>?
     @ObservationIgnored private var runID: UUID?
+    @ObservationIgnored private var notificationTask: Task<Void, Never>?
 
     init(client: (any InventoryFetching)? = nil, notifier: (any InventoryNotifying)? = nil,
          clock: (any TrackingClock)? = nil) {
@@ -75,6 +71,7 @@ final class ContentViewModel {
         self.countdown = countdown
         countdownRemaining = 0
         hasCompletedRequest = false
+        pollingPhase = .regular
         trackingTask = Task { [weak self] in
             await self?.track(ids: ids, location: location, interval: countdown,
                               settings: pushNotificationSettings, run: id)
@@ -86,12 +83,15 @@ final class ContentViewModel {
         isTracking = false
         trackingTask?.cancel()
         trackingTask = nil
+        notificationTask?.cancel()
+        notificationTask = nil
         notifier.cancel()
         trackingCount = 0
         inventoryInfos = []
         countdown = 0
         countdownRemaining = 0
         hasCompletedRequest = false
+        pollingPhase = .regular
         lastError = nil
     }
 
@@ -103,6 +103,7 @@ final class ContentViewModel {
                        settings: PushNotificationSettings, run: UUID) async {
         var previous: [String: ProductInventory] = [:]
         var failures = 0
+        var polling = InventoryPollingPolicy()
         while isCurrent(run) {
             let started = clock.now
             var fresh: [ProductInventory] = []
@@ -113,6 +114,7 @@ final class ContentViewModel {
                 guard isCurrent(run) else { return }
                 fresh = result.inventories
                 for inventory in fresh { previous[inventory.id] = inventory }
+                retryAfter = result.failures.values.compactMap(\.retryAfter).max() ?? 0
                 errors = result.failures.keys.sorted().map { "\($0): \(result.failures[$0]!.localizedDescription)" }
             } catch {
                 guard isCurrent(run) else { return }
@@ -134,12 +136,21 @@ final class ContentViewModel {
             } else {
                 failures = min(failures + 1, 9)
             }
-            // Only this round's confirmed results may trigger notifications.
-            await notifier.send(fresh, settings: settings)
-            guard isCurrent(run) else { return }
-            let delay = errors.isEmpty ? interval
+            polling.update(hasStock: fresh.contains { !$0.availableStores.isEmpty },
+                           succeeded: errors.isEmpty, now: clock.now)
+            pollingPhase = polling.phase
+            // A slow push must not block polling or accumulate queued notification tasks.
+            if notificationTask == nil {
+                notificationTask = Task { [weak self, notifier, fresh] in
+                    await notifier.send(fresh, settings: settings)
+                    guard let self, self.runID == run else { return }
+                    self.notificationTask = nil
+                }
+            }
+            let pollingInterval = polling.interval(base: interval)
+            let delay = errors.isEmpty ? pollingInterval
                 : InventoryRetryPolicy.delay(interval: interval, failures: failures, retryAfter: retryAfter)
-            let deadline = errors.isEmpty ? max(started + Double(interval), clock.now) : clock.now + Double(delay)
+            let deadline = errors.isEmpty ? max(started + Double(pollingInterval), clock.now) : clock.now + Double(delay)
             countdown = delay
             hasCompletedRequest = true
             do {

@@ -7,31 +7,47 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A2240AE52ADD2229006AC094 /* AppleStoreInventoryTrackerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2240AE42ADD2229006AC094 /* AppleStoreInventoryTrackerApp.swift */; };
-		A2240AE72ADD2229006AC094 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2240AE62ADD2229006AC094 /* ContentView.swift */; };
 		A2240AEC2ADD222A006AC094 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2240AEB2ADD222A006AC094 /* Preview Assets.xcassets */; };
-		A2240AF52ADE387A006AC094 /* Inventory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2240AF42ADE387A006AC094 /* Inventory.swift */; };
-		A2240AF72ADE5B8C006AC094 /* StoreInventoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2240AF62ADE5B8C006AC094 /* StoreInventoryView.swift */; };
 		A2328F2F2CB817E9006B3E6A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2328F2E2CB817E9006B3E6A /* Assets.xcassets */; };
-		A2C75AB62AE103710065D12E /* ContentViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2C75AB52AE103710065D12E /* ContentViewModel.swift */; };
-		B10000000000000000000001 /* InventoryClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* InventoryClient.swift */; };
-		B10000000000000000000003 /* InventoryNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000003 /* InventoryNotifier.swift */; };
-		B10000000000000000000004 /* ProductPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000004 /* ProductPresentation.swift */; };
+		DCE971F5BAD24E64BEDB46D5 /* AppleStoreInventoryTrackerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6790475DB74E4FF0A08AD70A /* AppleStoreInventoryTrackerApp.swift */; };
+		C6F28E3BFBF645F5A7504DDB /* Inventory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49F41D24A5D845F288DD178B /* Inventory.swift */; };
+		6B44E691FFF94D80ADF703C6 /* ProductPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A4E262971674F6CBA12DBAF /* ProductPresentation.swift */; };
+		9B8A9402AB9D4A74865ED486 /* ContentViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2360B666E567452A959EC6B8 /* ContentViewModel.swift */; };
+		7205BE52E0F1475C9248629C /* InventoryNotificationPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE67D93A491D4F06B93149AB /* InventoryNotificationPolicy.swift */; };
+		A6FB7C08D4FE43CDB4CB1665 /* InventoryPollingPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C457CC647D24D758BFECFB1 /* InventoryPollingPolicy.swift */; };
+		C09C0986985149CAA834ED86 /* TrackingClock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69D76128AA75443EB64911F9 /* TrackingClock.swift */; };
+		DA072555DF8040F8BAEB9885 /* AppleProductPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86916DAC626547888390A5E5 /* AppleProductPage.swift */; };
+		B6D66C935D454E9794E17C6D /* InventoryClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 379B0F1005FF4905AAEFE5CE /* InventoryClient.swift */; };
+		DA224857F19D44638B68B184 /* InventoryNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA7FBFACEF6D4C91AEF4C34D /* InventoryNotifier.swift */; };
+		88257001D3694E6ABD951BCD /* PickupAPIModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4F54ADC6697488B981FD94E /* PickupAPIModel.swift */; };
+		757E262780AF491DA242A640 /* ProductImageLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FFE7742B62045BB8625BD6D /* ProductImageLoader.swift */; };
+		CF522CE3D0544084BA43FA48 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDEE2064242C4F82BFF675D7 /* ContentView.swift */; };
+		C70AF263F79F4493A8B7C631 /* PickupControlStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 755AD10963F74D919BD07D66 /* PickupControlStyle.swift */; };
+		EC97BFF8A4614F429F817C45 /* ProductInventoryHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73B046E4C4D54AFA83A612B9 /* ProductInventoryHeader.swift */; };
+		D3BD0E71DE194BBF844EC7C0 /* QuitConfirmation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D91B53A0D19E4BA7BC8B4F26 /* QuitConfirmation.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		A2240AE12ADD2229006AC094 /* AppleStoreInventoryTracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AppleStoreInventoryTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		A2240AE42ADD2229006AC094 /* AppleStoreInventoryTrackerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleStoreInventoryTrackerApp.swift; sourceTree = "<group>"; };
-		A2240AE62ADD2229006AC094 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A2240AEB2ADD222A006AC094 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		A2240AED2ADD222A006AC094 /* AppleStoreInventoryTracker.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AppleStoreInventoryTracker.entitlements; sourceTree = "<group>"; };
-		A2240AF42ADE387A006AC094 /* Inventory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Inventory.swift; sourceTree = "<group>"; };
-		A2240AF62ADE5B8C006AC094 /* StoreInventoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreInventoryView.swift; sourceTree = "<group>"; };
 		A2328F2E2CB817E9006B3E6A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		A2C75AB52AE103710065D12E /* ContentViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewModel.swift; sourceTree = "<group>"; };
-		B20000000000000000000001 /* InventoryClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryClient.swift; sourceTree = "<group>"; };
-		B20000000000000000000003 /* InventoryNotifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryNotifier.swift; sourceTree = "<group>"; };
-		B20000000000000000000004 /* ProductPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductPresentation.swift; sourceTree = "<group>"; };
+		6790475DB74E4FF0A08AD70A /* AppleStoreInventoryTrackerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleStoreInventoryTrackerApp.swift; sourceTree = "<group>"; };
+		49F41D24A5D845F288DD178B /* Inventory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Inventory.swift; sourceTree = "<group>"; };
+		4A4E262971674F6CBA12DBAF /* ProductPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductPresentation.swift; sourceTree = "<group>"; };
+		2360B666E567452A959EC6B8 /* ContentViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewModel.swift; sourceTree = "<group>"; };
+		AE67D93A491D4F06B93149AB /* InventoryNotificationPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryNotificationPolicy.swift; sourceTree = "<group>"; };
+		1C457CC647D24D758BFECFB1 /* InventoryPollingPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryPollingPolicy.swift; sourceTree = "<group>"; };
+		69D76128AA75443EB64911F9 /* TrackingClock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackingClock.swift; sourceTree = "<group>"; };
+		86916DAC626547888390A5E5 /* AppleProductPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleProductPage.swift; sourceTree = "<group>"; };
+		379B0F1005FF4905AAEFE5CE /* InventoryClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryClient.swift; sourceTree = "<group>"; };
+		EA7FBFACEF6D4C91AEF4C34D /* InventoryNotifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryNotifier.swift; sourceTree = "<group>"; };
+		B4F54ADC6697488B981FD94E /* PickupAPIModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickupAPIModel.swift; sourceTree = "<group>"; };
+		8FFE7742B62045BB8625BD6D /* ProductImageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductImageLoader.swift; sourceTree = "<group>"; };
+		CDEE2064242C4F82BFF675D7 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		755AD10963F74D919BD07D66 /* PickupControlStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickupControlStyle.swift; sourceTree = "<group>"; };
+		73B046E4C4D54AFA83A612B9 /* ProductInventoryHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductInventoryHeader.swift; sourceTree = "<group>"; };
+		D91B53A0D19E4BA7BC8B4F26 /* QuitConfirmation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuitConfirmation.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -64,14 +80,11 @@
 		A2240AE32ADD2229006AC094 /* AppleStoreInventoryTracker */ = {
 			isa = PBXGroup;
 			children = (
-				A2240AE42ADD2229006AC094 /* AppleStoreInventoryTrackerApp.swift */,
-				A2240AF42ADE387A006AC094 /* Inventory.swift */,
-				B20000000000000000000004 /* ProductPresentation.swift */,
-				A2240AE62ADD2229006AC094 /* ContentView.swift */,
-				A2240AF62ADE5B8C006AC094 /* StoreInventoryView.swift */,
-				A2C75AB52AE103710065D12E /* ContentViewModel.swift */,
-				B20000000000000000000003 /* InventoryNotifier.swift */,
-				B20000000000000000000001 /* InventoryClient.swift */,
+				5CBD42E107D041A0924E7DFB /* App */,
+				64F7064C50B345DC886BAC98 /* Models */,
+				3C4A4836FC3043D0955EA49E /* Monitoring */,
+				E750CE32F5444F0093E1454B /* Services */,
+				1B201D3B02AB4EC8A11DEFA0 /* Views */,
 				A2240AED2ADD222A006AC094 /* AppleStoreInventoryTracker.entitlements */,
 				A2328F2E2CB817E9006B3E6A /* Assets.xcassets */,
 				A2240AEA2ADD222A006AC094 /* Preview Content */,
@@ -85,6 +98,57 @@
 				A2240AEB2ADD222A006AC094 /* Preview Assets.xcassets */,
 			);
 			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		5CBD42E107D041A0924E7DFB /* App */ = {
+			isa = PBXGroup;
+			children = (
+				6790475DB74E4FF0A08AD70A /* AppleStoreInventoryTrackerApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		64F7064C50B345DC886BAC98 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				49F41D24A5D845F288DD178B /* Inventory.swift */,
+				4A4E262971674F6CBA12DBAF /* ProductPresentation.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		3C4A4836FC3043D0955EA49E /* Monitoring */ = {
+			isa = PBXGroup;
+			children = (
+				2360B666E567452A959EC6B8 /* ContentViewModel.swift */,
+				AE67D93A491D4F06B93149AB /* InventoryNotificationPolicy.swift */,
+				1C457CC647D24D758BFECFB1 /* InventoryPollingPolicy.swift */,
+				69D76128AA75443EB64911F9 /* TrackingClock.swift */,
+			);
+			path = Monitoring;
+			sourceTree = "<group>";
+		};
+		E750CE32F5444F0093E1454B /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				86916DAC626547888390A5E5 /* AppleProductPage.swift */,
+				379B0F1005FF4905AAEFE5CE /* InventoryClient.swift */,
+				EA7FBFACEF6D4C91AEF4C34D /* InventoryNotifier.swift */,
+				B4F54ADC6697488B981FD94E /* PickupAPIModel.swift */,
+				8FFE7742B62045BB8625BD6D /* ProductImageLoader.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		1B201D3B02AB4EC8A11DEFA0 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				CDEE2064242C4F82BFF675D7 /* ContentView.swift */,
+				755AD10963F74D919BD07D66 /* PickupControlStyle.swift */,
+				73B046E4C4D54AFA83A612B9 /* ProductInventoryHeader.swift */,
+				D91B53A0D19E4BA7BC8B4F26 /* QuitConfirmation.swift */,
+			);
+			path = Views;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -157,14 +221,22 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A2240AF52ADE387A006AC094 /* Inventory.swift in Sources */,
-				B10000000000000000000004 /* ProductPresentation.swift in Sources */,
-				A2240AF72ADE5B8C006AC094 /* StoreInventoryView.swift in Sources */,
-				A2240AE72ADD2229006AC094 /* ContentView.swift in Sources */,
-				A2240AE52ADD2229006AC094 /* AppleStoreInventoryTrackerApp.swift in Sources */,
-				A2C75AB62AE103710065D12E /* ContentViewModel.swift in Sources */,
-				B10000000000000000000003 /* InventoryNotifier.swift in Sources */,
-				B10000000000000000000001 /* InventoryClient.swift in Sources */,
+				DCE971F5BAD24E64BEDB46D5 /* AppleStoreInventoryTrackerApp.swift in Sources */,
+				C6F28E3BFBF645F5A7504DDB /* Inventory.swift in Sources */,
+				6B44E691FFF94D80ADF703C6 /* ProductPresentation.swift in Sources */,
+				9B8A9402AB9D4A74865ED486 /* ContentViewModel.swift in Sources */,
+				7205BE52E0F1475C9248629C /* InventoryNotificationPolicy.swift in Sources */,
+				A6FB7C08D4FE43CDB4CB1665 /* InventoryPollingPolicy.swift in Sources */,
+				C09C0986985149CAA834ED86 /* TrackingClock.swift in Sources */,
+				DA072555DF8040F8BAEB9885 /* AppleProductPage.swift in Sources */,
+				B6D66C935D454E9794E17C6D /* InventoryClient.swift in Sources */,
+				DA224857F19D44638B68B184 /* InventoryNotifier.swift in Sources */,
+				88257001D3694E6ABD951BCD /* PickupAPIModel.swift in Sources */,
+				757E262780AF491DA242A640 /* ProductImageLoader.swift in Sources */,
+				CF522CE3D0544084BA43FA48 /* ContentView.swift in Sources */,
+				C70AF263F79F4493A8B7C631 /* PickupControlStyle.swift in Sources */,
+				EC97BFF8A4614F429F817C45 /* ProductInventoryHeader.swift in Sources */,
+				D3BD0E71DE194BBF844EC7C0 /* QuitConfirmation.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

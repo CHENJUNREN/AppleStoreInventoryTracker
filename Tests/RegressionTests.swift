@@ -77,6 +77,18 @@ private final class RecordingNotifier: InventoryNotifying {
     func cancel() { cancellations += 1 }
 }
 
+@MainActor
+private final class SlowNotifier: InventoryNotifying {
+    var calls = 0
+    private var pending: CheckedContinuation<Void, Never>?
+    func requestAuthorization() {}
+    func send(_ inventories: [ProductInventory], settings: PushNotificationSettings) async {
+        calls += 1
+        await withCheckedContinuation { pending = $0 }
+    }
+    func cancel() { pending?.resume(); pending = nil }
+}
+
 private struct StubResponse {
     var status = 200
     var type = "application/json"
@@ -136,6 +148,9 @@ struct RegressionTests {
 
     @MainActor
     static func main() async throws {
+        pollingPolicies()
+        await adaptiveSchedule()
+        await slowNotifications()
         await lifecycle()
         await schedule()
         await failureRecovery()
@@ -143,6 +158,84 @@ struct RegressionTests {
         await presentation()
         try await client()
         print("\(passed) regression scenarios passed; no external requests or notifications sent.")
+    }
+
+    private static func pollingPolicies() {
+        var policy = InventoryPollingPolicy()
+        policy.update(hasStock: false, succeeded: true, now: 0)
+        expect(policy.interval(base: 300) == 300, "empty stock keeps normal frequency")
+        policy.update(hasStock: true, succeeded: true, now: 10)
+        expect(policy.phase == .accelerated && policy.interval(base: 300) == 15, "stock starts acceleration")
+        expect(policy.interval(base: 2) == 2, "never slow a faster user interval")
+        policy.update(hasStock: false, succeeded: true, now: 25)
+        policy.update(hasStock: false, succeeded: false, now: 40)
+        policy.update(hasStock: false, succeeded: true, now: 55)
+        policy.update(hasStock: false, succeeded: true, now: 70)
+        expect(policy.phase == .accelerated, "failed rounds break consecutive empty count")
+        policy.update(hasStock: false, succeeded: true, now: 85)
+        expect(policy.phase == .observing && policy.interval(base: 300) == 30, "three empty rounds start observation")
+        policy.update(hasStock: true, succeeded: true, now: 100)
+        expect(policy.phase == .accelerated, "returning stock accelerates again")
+        policy.update(hasStock: true, succeeded: true, now: 700)
+        expect(policy.phase == .observing, "continuous availability cannot renew ten minute budget")
+        policy.update(hasStock: true, succeeded: true, now: 1000)
+        expect(policy.phase == .regular, "continuous stock eventually returns to normal")
+        policy.update(hasStock: false, succeeded: true, now: 1300)
+        policy.update(hasStock: true, succeeded: false, now: 1600)
+        expect(policy.phase == .regular, "partial or failed response cannot trigger acceleration")
+        policy.update(hasStock: true, succeeded: true, now: 1900)
+        expect(policy.phase == .accelerated, "new release can start another activity window")
+        pass("adaptive polling transitions, time caps, failed rounds and faster user intervals")
+
+        var notifications = InventoryNotificationPolicy()
+        let available = ProductInventory(id: "A", stores: stock("A"))
+        let empty = ProductInventory(id: "A", stores: stock("A", available: false))
+        expect(notifications.shouldNotify(available, now: 0), "notify first stock immediately")
+        expect(!notifications.shouldNotify(available, now: 15), "suppress repeated accelerated alerts")
+        expect(notifications.shouldNotify(available, now: 60), "repeat reminder at sixty seconds")
+        let expanded = ProductInventory(id: "A", stores: stock("A") + [StoreInventoryInfo(storeName: "新门店", storeImageUrl: "", productName: "A", isProductAvailable: true, productId: "A", storeNumber: "R002")])
+        expect(notifications.shouldNotify(expanded, now: 61), "new store bypasses notification cooldown")
+        expect(!notifications.shouldNotify(empty, now: 62), "empty stock resets notifications without alert")
+        expect(notifications.shouldNotify(available, now: 63), "restock alerts immediately")
+        pass("availability notification cooldown and new-store alerts")
+    }
+
+    @MainActor
+    private static func adaptiveSchedule() async {
+        let client = ControlledClient(), clock = ManualClock()
+        let vm = ContentViewModel(client: client, notifier: RecordingNotifier(), clock: clock)
+        vm.startTracking(for: "A,B", location: "上海", countdown: 300, pushNotificationSettings: settings)
+        await eventually("adaptive first") { client.calls.count == 1 }
+        client.complete(0, .success(batch(["A", "B"])))
+        await eventually("adaptive waiting") { clock.waiting == 1 }
+        expect(vm.countdownRemaining == 15 && vm.countdownLabel.contains("加速查询中"), "UI displays accelerated countdown")
+        clock.advance(15)
+        await eventually("adaptive batch") { client.calls.count == 2 }
+        expect(client.calls[1] == ["A", "B"] && client.maxActive == 1, "acceleration preserves single batch")
+        client.complete(1, .failure(InventoryError.httpStatus(429, retryAfter: 600)))
+        await eventually("adaptive cooldown") { vm.lastError != nil && clock.waiting == 1 }
+        expect(vm.countdownRemaining == 600 && vm.countdownLabel.contains("重试"), "server cooldown overrides acceleration and UI")
+        vm.stopTracking()
+        expect(vm.pollingPhase == .regular && !vm.hasCompletedRequest, "stop clears adaptive state")
+        pass("accelerated batch countdown and rate-limit UI priority")
+    }
+
+    @MainActor
+    private static func slowNotifications() async {
+        let client = ControlledClient(), clock = ManualClock(), notifier = SlowNotifier()
+        let vm = ContentViewModel(client: client, notifier: notifier, clock: clock)
+        vm.startTracking(for: "A", location: "上海", countdown: 300, pushNotificationSettings: settings)
+        await eventually("slow push first batch") { client.calls.count == 1 }
+        client.complete(0, .success(batch(["A"])))
+        await eventually("slow push waiting") { notifier.calls == 1 && clock.waiting == 1 }
+        clock.advance(15)
+        await eventually("poll despite pending push") { client.calls.count == 2 }
+        client.complete(1, .success(batch(["A"])))
+        await eventually("no push backlog") { vm.trackingCount == 2 && clock.waiting == 1 }
+        expect(notifier.calls == 1, "slow push cannot accumulate overlapping tasks")
+        vm.stopTracking()
+        expect(!vm.isTracking, "stop cancels pending push")
+        pass("slow notifications never block polling or accumulate tasks")
     }
 
     @MainActor
@@ -222,7 +315,7 @@ struct RegressionTests {
         let minuteTimer = ContentViewModel(client: minuteClient, notifier: RecordingNotifier(), clock: minuteClock)
         minuteTimer.startTracking(for: "A", location: "上海", countdown: 125, pushNotificationSettings: settings)
         await eventually("minute timer request") { minuteClient.calls.count == 1 }
-        minuteClient.complete(0, .success(batch(["A"])))
+        minuteClient.complete(0, .success(InventoryBatchResult(inventories: [ProductInventory(id: "A", stores: stock("A", available: false))], failures: [:])))
         await eventually("minute timer waiting") { minuteClock.waiting == 1 }
         expect(minuteTimer.countdownText == "02:05", "125 remaining seconds must display 02:05, not elapsed seconds")
         minuteClock.advance(65)
@@ -268,7 +361,7 @@ struct RegressionTests {
         clock.advance(2)
         await eventually("repeat") { client.calls.count == 5 }
         client.complete(4, .success(recovered))
-        await eventually("repeat done") { vm.trackingCount == 3 }
+        await eventually("repeat done") { vm.trackingCount == 3 && notifier.rounds.count == 5 }
         expect(notifier.rounds[3].last?.id == "B" && notifier.rounds[4].last?.id == "B", "preserve repeated availability notifications")
         vm.stopTracking()
         pass("empty success clears old data; recovery retains repeated notifications")
