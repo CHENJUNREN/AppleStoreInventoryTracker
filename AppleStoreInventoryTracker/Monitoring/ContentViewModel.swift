@@ -35,15 +35,17 @@ final class ContentViewModel {
     @ObservationIgnored private let client: any InventoryFetching
     @ObservationIgnored private let notifier: any InventoryNotifying
     @ObservationIgnored private let clock: any TrackingClock
+    @ObservationIgnored private let activity: any MonitoringActivityManaging
     @ObservationIgnored private var trackingTask: Task<Void, Never>?
     @ObservationIgnored private var runID: UUID?
     @ObservationIgnored private var notificationTask: Task<Void, Never>?
 
     init(client: (any InventoryFetching)? = nil, notifier: (any InventoryNotifying)? = nil,
-         clock: (any TrackingClock)? = nil) {
+         clock: (any TrackingClock)? = nil, activity: (any MonitoringActivityManaging)? = nil) {
         self.client = client ?? InventoryClient()
         self.notifier = notifier ?? InventoryNotifier()
         self.clock = clock ?? SystemTrackingClock()
+        self.activity = activity ?? MonitoringActivity()
     }
 
     func requestUNAuthorization() { notifier.requestAuthorization() }
@@ -64,6 +66,7 @@ final class ContentViewModel {
         }
         let id = UUID()
         runID = id
+        activity.begin()
         isTracking = true
         trackingCount = 0
         inventoryInfos = []
@@ -81,6 +84,7 @@ final class ContentViewModel {
     func stopTracking() {
         runID = nil
         isTracking = false
+        activity.end()
         trackingTask?.cancel()
         trackingTask = nil
         notificationTask?.cancel()

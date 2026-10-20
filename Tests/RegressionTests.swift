@@ -19,6 +19,14 @@ private func stock(_ product: String, available: Bool = true) -> [StoreInventory
 }
 
 @MainActor
+private final class RecordingActivity: MonitoringActivityManaging {
+    var starts = 0
+    var ends = 0
+    func begin() { starts += 1 }
+    func end() { ends += 1 }
+}
+
+@MainActor
 private final class ManualClock: TrackingClock {
     var now: TimeInterval = 0
     private var sleepers: [UUID: (deadline: TimeInterval, continuation: CheckedContinuation<Void, Error>)] = [:]
@@ -148,6 +156,7 @@ struct RegressionTests {
 
     @MainActor
     static func main() async throws {
+        await powerLifecycle()
         pollingPolicies()
         await adaptiveSchedule()
         await slowNotifications()
@@ -158,6 +167,39 @@ struct RegressionTests {
         await presentation()
         try await client()
         print("\(passed) regression scenarios passed; no external requests or notifications sent.")
+    }
+
+    @MainActor
+    private static func powerLifecycle() async {
+        let client = ControlledClient(), clock = ManualClock(), activity = RecordingActivity()
+        let vm = ContentViewModel(client: client, notifier: RecordingNotifier(), clock: clock, activity: activity)
+        vm.startTracking(for: "", location: "上海", countdown: 300, pushNotificationSettings: settings)
+        expect(activity.starts == 0, "invalid input must not prevent sleep")
+        vm.startTracking(for: "A", location: "上海", countdown: 300, pushNotificationSettings: settings)
+        vm.startTracking(for: "A", location: "上海", countdown: 300, pushNotificationSettings: settings)
+        await eventually("power first") { client.calls.count == 1 }
+        expect(activity.starts == 1, "only one activity per monitoring run")
+        client.complete(0, .success(batch(["A"])))
+        await eventually("power waiting") { clock.waiting == 1 }
+        clock.advance(3600)
+        await eventually("wake overdue query") { client.calls.count == 2 }
+        for _ in 0..<20 { await Task.yield() }
+        expect(client.maxActive == 1 && client.calls.count == 2, "wake does not replay missed queries")
+        client.complete(1, .failure(InventoryError.httpStatus(429, retryAfter: 600)))
+        await eventually("power cooldown") { clock.waiting == 1 && vm.lastError != nil }
+        clock.advance(300)
+        await eventually("wake during cooldown") { clock.waiting == 1 && vm.countdownRemaining == 300 }
+        expect(client.calls.count == 2, "wake preserves unexpired server cooldown")
+        vm.stopTracking()
+        expect(activity.ends == 1, "stop releases sleep prevention")
+        vm.startTracking(for: "A", location: "上海", countdown: 300, pushNotificationSettings: settings)
+        await eventually("power restart") { client.calls.count == 3 }
+        expect(activity.starts == 2, "restart reacquires activity")
+        vm.stopTracking()
+        client.complete(2, .success(batch(["A"])))
+        await eventually("power cleanup") { client.active == 0 }
+        expect(activity.ends == 2 && !vm.isTracking, "stop during request releases activity")
+        pass("monitoring activity lifecycle and wake deadline/cooldown handling")
     }
 
     private static func pollingPolicies() {
