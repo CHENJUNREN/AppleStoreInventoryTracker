@@ -160,6 +160,8 @@ struct RegressionTests {
         desktopPersistence()
         independentConfigurationSnapshots()
         try customizationEditorState()
+        try iPhoneCatalogParsing()
+        try await iPhoneCatalogCaching()
         cachedResultsPersistence()
         try await cachedImageRelaunch()
         await independentDesktopTasks()
@@ -175,6 +177,93 @@ struct RegressionTests {
         await presentation()
         try await client()
         print("\(passed) regression scenarios passed; no external requests or notifications sent.")
+    }
+
+    private static func catalogFixture(_ name: String) throws -> String {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .appendingPathComponent("Fixtures/IPhoneCatalog")
+        return try String(contentsOf: root.appendingPathComponent(name + ".html"), encoding: .utf8)
+    }
+
+    @MainActor
+    private static func iPhoneCatalogParsing() throws {
+        let index = try catalogFixture("index")
+        let pages = try IPhoneCatalogParser.productPages(in: index + index)
+        expect(pages.count == 6, "catalog discovers current iPhone product cards and deduplicates links")
+        expect(!pages.contains { $0.path.contains("carrier") }, "non-product links are not fetched")
+        let models = try pages.flatMap { try IPhoneCatalogParser.models(in: catalogFixture($0.lastPathComponent)) }
+        expect(models.count == 7 && models.flatMap(\.variants).count == 73, "all fixture iPhone families and variants parsed")
+        let pro = models.first { $0.name == "iPhone 18 Pro" }!
+        let max = models.first { $0.name == "iPhone 18 Pro Max" }!
+        expect(pro.id != max.id && pro.variants.count == 16 && max.variants.count == 16, "Pro and Pro Max do not share a model selection")
+        expect(pro.variants.allSatisfy { !$0.capacity.contains("脚注") && !$0.modelName.contains("显示屏") }, "display labels exclude HTML and footnotes")
+        let silver = pro.variants.first { $0.color == "银色" && $0.capacity == "256GB" }!
+        expect(silver.partNumber == "MJT84CH/A", "exact color and capacity resolve to the published SKU")
+        expect(silver.imageURL?.path.contains("silver") == true, "variant uses its matching product image")
+        let catalog = IPhoneCatalog(updatedAt: Date(), models: models)
+        var selection = IPhoneSelection()
+        expect(selection.variant(in: catalog) == nil, "incomplete selection cannot save")
+        selection.selectModel(pro.id)
+        selection.selectColor(silver.colorID, in: catalog)
+        selection.capacityID = silver.capacityID
+        expect(selection.variant(in: catalog)?.partNumber == silver.partNumber, "selection resolves exact variant")
+        selection.selectModel(max.id)
+        expect(selection.colorID.isEmpty && selection.capacityID.isEmpty && selection.variant(in: catalog) == nil, "model change clears stale configuration")
+        selection.modelID = pro.id
+        selection.colorID = silver.colorID
+        selection.capacityID = "unlisted"
+        expect(selection.variant(in: catalog) == nil, "unlisted combinations are never synthesized")
+        do {
+            _ = try IPhoneCatalogParser.models(in: "<html>Service unavailable</html>")
+            fatalError("invalid catalog page accepted")
+        } catch {}
+        let unsupported = try catalogFixture("iphone-air").replacingOccurrences(of: "dimensionCapacity", with: "unknownDimension")
+        do {
+            _ = try IPhoneCatalogParser.models(in: unsupported)
+            fatalError("unknown catalog structure accepted")
+        } catch {}
+        pass("live-derived iPhone catalog fixtures, exact SKU selection and malformed page handling")
+    }
+
+    @MainActor
+    private static func iPhoneCatalogCaching() async throws {
+        let index = try catalogFixture("index")
+        let pages = try IPhoneCatalogParser.productPages(in: index)
+        let responses = try [StubResponse(type: "text/html", body: index)] + pages.map {
+            StubResponse(type: "text/html", body: try catalogFixture($0.lastPathComponent))
+        }
+        let queue = StubQueue(responses + [.init(status: 429, type: "text/html", headers: ["Retry-After": "120"])])
+        StubURLProtocol.queue = queue
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubURLProtocol.self]
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let file = directory.appendingPathComponent("catalog.json")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let service = IPhoneCatalogService(configuration: config, cacheURL: file)
+        async let first = service.load()
+        async let second = service.load()
+        let values = try await (first, second)
+        expect(values.0 == values.1 && queue.requests.count == 7, "concurrent catalog loads share a single sequential fetch")
+        _ = try await service.load()
+        expect(queue.requests.count == 7, "fresh catalog does not refetch for each add sheet")
+        let reopened = IPhoneCatalogService(configuration: config, cacheURL: file)
+        let restored = try await reopened.load()
+        expect(restored == values.0 && queue.requests.count == 7, "catalog survives restart without network")
+        do {
+            _ = try await service.load(forceRefresh: true)
+            fatalError("429 catalog refresh succeeded")
+        } catch {}
+        let retained = await service.cachedCatalog()
+        expect(retained == values.0, "refresh failure keeps last complete catalog")
+        do {
+            _ = try await service.load(forceRefresh: true)
+            fatalError("catalog cooldown ignored")
+        } catch {}
+        expect(queue.requests.count == 8, "failed refresh does not immediately retry")
+        let afterFailure = IPhoneCatalogService(configuration: config, cacheURL: file)
+        let disk = await afterFailure.cachedCatalog()
+        expect(disk == restored, "failed refresh cannot replace disk cache with an empty catalog")
+        pass("catalog request coalescing, daily cache, relaunch persistence and failure cooldown")
     }
 
     @MainActor

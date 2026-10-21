@@ -10,8 +10,8 @@ enum AppleProductPage {
         return components.url
     }
 
-    /// Match the exact SKU before selecting its product image (never the first variant).
-    static func productImageURL(in html: String, product: String) -> URL? {
+    /// Extract JSON without evaluating JavaScript; braces in strings do not end the payload.
+    static func selectionData(in html: String) -> Data? {
         guard let bootstrap = html.range(of: "window.PRODUCT_SELECTION_BOOTSTRAP"),
               let marker = html.range(of: "productSelectionData:", range: bootstrap.upperBound..<html.endIndex),
               let start = html[marker.upperBound...].firstIndex(of: "{") else { return nil }
@@ -28,24 +28,26 @@ enum AppleProductPage {
             else if character == "{" { depth += 1 }
             else if character == "}" {
                 depth -= 1
-                if depth == 0 {
-                    let data = Data(html[start...index].utf8)
-                    guard let selection = try? JSONDecoder().decode(Selection.self, from: data),
-                          let item = selection.products.first(where: {
-                              $0.partNumber.caseInsensitiveCompare(product.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame
-                          }), let key = item.imageKey,
-                          let sources = selection.imageDictionary[key]?.sources else { return nil }
-                    return sources.compactMap { source in
-                        // srcSet can contain density descriptors or multiple renditions.
-                        guard let first = source.srcSet.split(separator: ",").first?.split(whereSeparator: { $0.isWhitespace }).first,
-                              let url = URL(string: String(first)),
-                              url.scheme == "https", url.host == "store.storeimages.cdn-apple.com" else { return nil }
-                        return url
-                    }.first
-                }
+                if depth == 0 { return Data(html[start...index].utf8) }
             }
         }
         return nil
+    }
+
+    /// Match the exact SKU before selecting its product image (never the first variant).
+    static func productImageURL(in html: String, product: String) -> URL? {
+        guard let data = selectionData(in: html),
+              let selection = try? JSONDecoder().decode(Selection.self, from: data),
+              let item = selection.products.first(where: {
+                  $0.partNumber.caseInsensitiveCompare(product.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame
+              }), let key = item.imageKey,
+              let sources = selection.imageDictionary[key]?.sources else { return nil }
+        return sources.compactMap { source in
+            guard let first = source.srcSet.split(separator: ",").first?.split(whereSeparator: { $0.isWhitespace }).first,
+                  let url = URL(string: String(first)),
+                  url.scheme == "https", url.host == "store.storeimages.cdn-apple.com" else { return nil }
+            return url
+        }.first
     }
 
     /// 192 pixels supplies up to 3× resolution for the unchanged 64-point cell.

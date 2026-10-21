@@ -31,6 +31,10 @@
 		27648A723A1241BCA29BE394 /* ConfigurationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F0C52C8C878434ABA6EBB2B /* ConfigurationView.swift */; };
 		AD348CCAFB044D91AF410343 /* ProductNumberHelp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 615124AAE23D49EAB3B9D869 /* ProductNumberHelp.swift */; };
 		7FED711078674BB69939E7A9 /* SheetControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA8A791CB7C14DD1B88DBB4C /* SheetControls.swift */; };
+		E313F66D0FF34C92873FDEDE /* IPhoneCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = E41CD3CF1C9C4BBE8AF6EAE3 /* IPhoneCatalog.swift */; };
+		0A5FB6BEF543457FB3EE5B51 /* IPhoneCatalogParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8D8A730C33C46F6A7F456EF /* IPhoneCatalogParser.swift */; };
+		0C5B0ACA4A9F48689183E5FD /* IPhoneCatalogService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9101D1568FC41CCA10562BA /* IPhoneCatalogService.swift */; };
+		703FE28F84A246CABC02C84C /* IPhoneProductPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 690892A0271A484CBB1E7B3F /* IPhoneProductPicker.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -60,6 +64,10 @@
 		0F0C52C8C878434ABA6EBB2B /* ConfigurationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigurationView.swift; sourceTree = "<group>"; };
 		615124AAE23D49EAB3B9D869 /* ProductNumberHelp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductNumberHelp.swift; sourceTree = "<group>"; };
 		CA8A791CB7C14DD1B88DBB4C /* SheetControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SheetControls.swift; sourceTree = "<group>"; };
+		E41CD3CF1C9C4BBE8AF6EAE3 /* IPhoneCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPhoneCatalog.swift; sourceTree = "<group>"; };
+		E8D8A730C33C46F6A7F456EF /* IPhoneCatalogParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPhoneCatalogParser.swift; sourceTree = "<group>"; };
+		C9101D1568FC41CCA10562BA /* IPhoneCatalogService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPhoneCatalogService.swift; sourceTree = "<group>"; };
+		690892A0271A484CBB1E7B3F /* IPhoneProductPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPhoneProductPicker.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -124,6 +132,7 @@
 			isa = PBXGroup;
 			children = (
 				1C4967F7DF754539B94D33AC /* ScanTask.swift */,
+				E41CD3CF1C9C4BBE8AF6EAE3 /* IPhoneCatalog.swift */,
 				49F41D24A5D845F288DD178B /* Inventory.swift */,
 				4A4E262971674F6CBA12DBAF /* ProductPresentation.swift */,
 			);
@@ -147,6 +156,8 @@
 			isa = PBXGroup;
 			children = (
 				86916DAC626547888390A5E5 /* AppleProductPage.swift */,
+				C9101D1568FC41CCA10562BA /* IPhoneCatalogService.swift */,
+				E8D8A730C33C46F6A7F456EF /* IPhoneCatalogParser.swift */,
 				379B0F1005FF4905AAEFE5CE /* InventoryClient.swift */,
 				EA7FBFACEF6D4C91AEF4C34D /* InventoryNotifier.swift */,
 				B4F54ADC6697488B981FD94E /* PickupAPIModel.swift */,
@@ -161,6 +172,7 @@
 				615124AAE23D49EAB3B9D869 /* ProductNumberHelp.swift */,
 				0F0C52C8C878434ABA6EBB2B /* ConfigurationView.swift */,
 				184412B562D745EC88C0C2E2 /* TaskEditor.swift */,
+				690892A0271A484CBB1E7B3F /* IPhoneProductPicker.swift */,
 				CA8A791CB7C14DD1B88DBB4C /* SheetControls.swift */,
 				CDEE2064242C4F82BFF675D7 /* ContentView.swift */,
 				73B046E4C4D54AFA83A612B9 /* ProductInventoryHeader.swift */,
@@ -242,9 +254,11 @@
 				AD348CCAFB044D91AF410343 /* ProductNumberHelp.swift in Sources */,
 				27648A723A1241BCA29BE394 /* ConfigurationView.swift in Sources */,
 				ED7767E5FBC44164A165CF56 /* TaskEditor.swift in Sources */,
+				703FE28F84A246CABC02C84C /* IPhoneProductPicker.swift in Sources */,
 				7FED711078674BB69939E7A9 /* SheetControls.swift in Sources */,
 				843E8B12D776461BBB775380 /* TaskStore.swift in Sources */,
 				16C88B5A6CDA4FD3BD088DDD /* ScanTask.swift in Sources */,
+				E313F66D0FF34C92873FDEDE /* IPhoneCatalog.swift in Sources */,
 				C10000000000000000000001 /* MonitoringActivity.swift in Sources */,
 				DCE971F5BAD24E64BEDB46D5 /* AppleStoreInventoryTrackerApp.swift in Sources */,
 				C6F28E3BFBF645F5A7504DDB /* Inventory.swift in Sources */,
@@ -254,6 +268,8 @@
 				A6FB7C08D4FE43CDB4CB1665 /* InventoryPollingPolicy.swift in Sources */,
 				C09C0986985149CAA834ED86 /* TrackingClock.swift in Sources */,
 				DA072555DF8040F8BAEB9885 /* AppleProductPage.swift in Sources */,
+				0C5B0ACA4A9F48689183E5FD /* IPhoneCatalogService.swift in Sources */,
+				0A5FB6BEF543457FB3EE5B51 /* IPhoneCatalogParser.swift in Sources */,
 				B6D66C935D454E9794E17C6D /* InventoryClient.swift in Sources */,
 				DA224857F19D44638B68B184 /* InventoryNotifier.swift in Sources */,
 				88257001D3694E6ABD951BCD /* PickupAPIModel.swift in Sources */,

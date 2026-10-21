@@ -14,7 +14,7 @@ struct TaskEditor: View {
     @Environment(\.dismiss) private var dismiss
     @State private var draft: ScanTaskDraft
     @State private var error: String?
-    @State private var showProductNumberHelp = false
+    @State private var selectedProduct: IPhoneVariant?
     @State private var startAfterSaving = true
 
     init(store: TaskStore) {
@@ -26,33 +26,31 @@ struct TaskEditor: View {
         SheetLayout(title: "添加产品") {
             VStack(spacing: 0) {
                 Form {
-                    Section("产品") {
-                        HStack {
-                            TextField("产品型号", text: $draft.task.product, prompt: Text("例如 MYLU3CH/A"))
-                            Button {
-                                showProductNumberHelp = true
-                            } label: {
-                                Image(systemName: "exclamationmark.circle")
-                                    .frame(width: 24, height: 24)
-                                    .contentShape(Rectangle())
+                    IPhoneProductPicker(product: $selectedProduct)
+                    Section {
+                        Toggle("自定义监控设置", isOn: Binding(
+                            get: { draft.customizationEnabled },
+                            set: {
+                                draft.setCustomizationEnabled($0, defaults: store.defaults)
+                                error = nil
                             }
-                            .buttonStyle(.plain).foregroundStyle(.secondary)
-                            .help("如何找到产品型号")
-                            .accessibilityLabel("如何找到产品型号")
+                        ))
+                    } footer: {
+                        Text("关闭时使用「配置」页中的地区、扫描间隔和通知设置，保存后作为此产品的独立配置。")
+                    }
+                    if draft.customizationEnabled {
+                        Section("地区") {
+                            RegionFields(region: $draft.settings.region)
                         }
-                        TextField("备注名称", text: $draft.task.name, prompt: Text("选填"))
-                    }
-                    Section("地区") {
-                        RegionFields(region: $draft.settings.region)
-                    }
-                    Section("扫描") {
-                        TextField("间隔（秒）", value: $draft.settings.interval, format: .number)
-                    }
-                    Section("通知") {
-                        Toggle("系统通知", isOn: $draft.settings.appNotification)
-                        Toggle("Bark 推送", isOn: $draft.settings.barkNotification)
-                        if draft.settings.barkNotification {
-                            TextField("Bark 地址", text: $draft.settings.barkURL, prompt: Text("https://api.day.app/{Key}/"))
+                        Section("扫描") {
+                            TextField("间隔（秒）", value: $draft.settings.interval, format: .number)
+                        }
+                        Section("通知") {
+                            Toggle("系统通知", isOn: $draft.settings.appNotification)
+                            Toggle("Bark 推送", isOn: $draft.settings.barkNotification)
+                            if draft.settings.barkNotification {
+                                TextField("Bark 地址", text: $draft.settings.barkURL, prompt: Text("https://api.day.app/{Key}/"))
+                            }
                         }
                     }
                 }.formStyle(.grouped)
@@ -63,6 +61,7 @@ struct TaskEditor: View {
                     Button("保存") { save(start: startAfterSaving) }
                         .modifier(SheetPillStyle(prominent: true))
                         .keyboardShortcut(.defaultAction)
+                        .disabled(selectedProduct == nil || store.storageError != nil)
                 }
                 .controlSize(.regular)
                 .padding(24)
@@ -70,12 +69,17 @@ struct TaskEditor: View {
             }
 
         }
-        .frame(width: 480, height: 560)
-        .sheet(isPresented: $showProductNumberHelp) { ProductNumberHelp() }
+        .frame(width: 480, height: draft.customizationEnabled ? 620 : 480)
     }
 
     private func save(start: Bool) {
-        let task = draft.savedTask
+        guard let selectedProduct else { return }
+        if !draft.customizationEnabled {
+            draft.setCustomizationEnabled(false, defaults: store.defaults)
+        }
+        var task = draft.savedTask
+        task.product = selectedProduct.partNumber
+        task.name = selectedProduct.displayName
         error = store.validationError(for: task)
         guard error == nil else { return }
         store.save(task, start: start)

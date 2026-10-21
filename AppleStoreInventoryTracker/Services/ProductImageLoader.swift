@@ -61,13 +61,19 @@ actor ProductImageLoader {
     }
 
     /// Cache the actual image bytes so relaunching does not depend on the product page or network.
-    func imageData(for product: String) async -> Data? {
+    func imageData(for product: String, sourceURL: URL? = nil) async -> Data? {
         let key = product.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         let file = imageDirectory?.appendingPathComponent(key.utf8.map { String(format: "%02x", $0) }.joined() + ".image")
         if let file, let data = try? Data(contentsOf: file), Self.isImage(data) { return data }
         if let pending = imageRequests[key] { return await pending.value }
         let request = Task { () -> Data? in
-            guard let url = await self.imageURL(for: key) else { return nil }
+            let catalogURL = sourceURL.flatMap { url in
+                url.scheme == "https" && url.host == "store.storeimages.cdn-apple.com" ? url : nil
+            }
+            let resolvedURL: URL?
+            if let catalogURL { resolvedURL = catalogURL }
+            else { resolvedURL = await self.imageURL(for: key) }
+            guard let url = resolvedURL else { return nil }
             do {
                 let (data, response) = try await self.session.data(from: url)
                 guard let response = response as? HTTPURLResponse, response.statusCode == 200,

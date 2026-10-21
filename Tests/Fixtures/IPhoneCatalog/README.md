@@ -1,0 +1,1 @@
+Minimal public Apple China shop fixtures captured on 2026-10-21. Only product cards and selection fields used by the parser are retained. These are regression fixtures, not a bundled production catalog.
