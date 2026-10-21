@@ -22,7 +22,6 @@
 		88257001D3694E6ABD951BCD /* PickupAPIModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4F54ADC6697488B981FD94E /* PickupAPIModel.swift */; };
 		757E262780AF491DA242A640 /* ProductImageLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FFE7742B62045BB8625BD6D /* ProductImageLoader.swift */; };
 		CF522CE3D0544084BA43FA48 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDEE2064242C4F82BFF675D7 /* ContentView.swift */; };
-		C70AF263F79F4493A8B7C631 /* PickupControlStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 755AD10963F74D919BD07D66 /* PickupControlStyle.swift */; };
 		EC97BFF8A4614F429F817C45 /* ProductInventoryHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73B046E4C4D54AFA83A612B9 /* ProductInventoryHeader.swift */; };
 		D3BD0E71DE194BBF844EC7C0 /* QuitConfirmation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D91B53A0D19E4BA7BC8B4F26 /* QuitConfirmation.swift */; };
 		C10000000000000000000001 /* MonitoringActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000001 /* MonitoringActivity.swift */; };
@@ -31,6 +30,7 @@
 		ED7767E5FBC44164A165CF56 /* TaskEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 184412B562D745EC88C0C2E2 /* TaskEditor.swift */; };
 		27648A723A1241BCA29BE394 /* ConfigurationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F0C52C8C878434ABA6EBB2B /* ConfigurationView.swift */; };
 		AD348CCAFB044D91AF410343 /* ProductNumberHelp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 615124AAE23D49EAB3B9D869 /* ProductNumberHelp.swift */; };
+		7FED711078674BB69939E7A9 /* SheetControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA8A791CB7C14DD1B88DBB4C /* SheetControls.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -51,7 +51,6 @@
 		B4F54ADC6697488B981FD94E /* PickupAPIModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickupAPIModel.swift; sourceTree = "<group>"; };
 		8FFE7742B62045BB8625BD6D /* ProductImageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductImageLoader.swift; sourceTree = "<group>"; };
 		CDEE2064242C4F82BFF675D7 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		755AD10963F74D919BD07D66 /* PickupControlStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickupControlStyle.swift; sourceTree = "<group>"; };
 		73B046E4C4D54AFA83A612B9 /* ProductInventoryHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductInventoryHeader.swift; sourceTree = "<group>"; };
 		D91B53A0D19E4BA7BC8B4F26 /* QuitConfirmation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuitConfirmation.swift; sourceTree = "<group>"; };
 		C20000000000000000000001 /* MonitoringActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitoringActivity.swift; sourceTree = "<group>"; };
@@ -60,6 +59,7 @@
 		184412B562D745EC88C0C2E2 /* TaskEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskEditor.swift; sourceTree = "<group>"; };
 		0F0C52C8C878434ABA6EBB2B /* ConfigurationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigurationView.swift; sourceTree = "<group>"; };
 		615124AAE23D49EAB3B9D869 /* ProductNumberHelp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductNumberHelp.swift; sourceTree = "<group>"; };
+		CA8A791CB7C14DD1B88DBB4C /* SheetControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SheetControls.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -161,8 +161,8 @@
 				615124AAE23D49EAB3B9D869 /* ProductNumberHelp.swift */,
 				0F0C52C8C878434ABA6EBB2B /* ConfigurationView.swift */,
 				184412B562D745EC88C0C2E2 /* TaskEditor.swift */,
+				CA8A791CB7C14DD1B88DBB4C /* SheetControls.swift */,
 				CDEE2064242C4F82BFF675D7 /* ContentView.swift */,
-				755AD10963F74D919BD07D66 /* PickupControlStyle.swift */,
 				73B046E4C4D54AFA83A612B9 /* ProductInventoryHeader.swift */,
 				D91B53A0D19E4BA7BC8B4F26 /* QuitConfirmation.swift */,
 			);
@@ -242,6 +242,7 @@
 				AD348CCAFB044D91AF410343 /* ProductNumberHelp.swift in Sources */,
 				27648A723A1241BCA29BE394 /* ConfigurationView.swift in Sources */,
 				ED7767E5FBC44164A165CF56 /* TaskEditor.swift in Sources */,
+				7FED711078674BB69939E7A9 /* SheetControls.swift in Sources */,
 				843E8B12D776461BBB775380 /* TaskStore.swift in Sources */,
 				16C88B5A6CDA4FD3BD088DDD /* ScanTask.swift in Sources */,
 				C10000000000000000000001 /* MonitoringActivity.swift in Sources */,
@@ -258,7 +259,6 @@
 				88257001D3694E6ABD951BCD /* PickupAPIModel.swift in Sources */,
 				757E262780AF491DA242A640 /* ProductImageLoader.swift in Sources */,
 				CF522CE3D0544084BA43FA48 /* ContentView.swift in Sources */,
-				C70AF263F79F4493A8B7C631 /* PickupControlStyle.swift in Sources */,
 				EC97BFF8A4614F429F817C45 /* ProductInventoryHeader.swift in Sources */,
 				D3BD0E71DE194BBF844EC7C0 /* QuitConfirmation.swift in Sources */,
 			);

@@ -1,10 +1,9 @@
 import SwiftUI
 
-struct ProductInventoryHeader: View {
-    let inventory: ProductInventory
-    var title: String? = nil
-    var summary: String? = nil
-    var highlightedAvailability: String? = nil
+struct ProductInventoryHeader<Summary: View>: View {
+    let product: String
+    let title: String
+    @ViewBuilder var summary: () -> Summary
     @State private var productImage: NSImage?
 
     var body: some View {
@@ -25,29 +24,12 @@ struct ProductInventoryHeader: View {
             .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 5) {
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(title ?? inventory.productName)
-                        .foregroundStyle(.primary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if summary == nil {
-                    Text("(\(inventory.availableStores.count))")
-                        .foregroundStyle(inventory.availableStores.isEmpty ? .red : .green)
-                        .fixedSize()
-                    }
-                }
-                .font(.subheadline.weight(.semibold))
-
-                Group {
-                    if let highlightedAvailability {
-                        Text("\(Text(summary ?? "").foregroundStyle(.secondary)) · \(Text(Image(systemName: "checkmark.circle.fill")).foregroundStyle(.green)) \(Text(highlightedAvailability).foregroundStyle(.green).fontWeight(.semibold))")
-                    } else {
-                        Text(summary ?? inventory.availabilitySummary).foregroundStyle(.secondary)
-                    }
-                }
-                .font(.caption)
-                .lineLimit(2)
-                .multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                summary()
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -55,8 +37,9 @@ struct ProductInventoryHeader: View {
         .fixedSize(horizontal: false, vertical: true)
         .padding(.vertical, 6)
         .contentShape(Rectangle())
-        .task(id: inventory.id) {
-            guard let data = await ProductImageLoader.shared.imageData(for: inventory.id), !Task.isCancelled else { return }
+        .task(id: product) {
+            productImage = nil
+            guard let data = await ProductImageLoader.shared.imageData(for: product), !Task.isCancelled else { return }
             productImage = NSImage(data: data)
         }
     }

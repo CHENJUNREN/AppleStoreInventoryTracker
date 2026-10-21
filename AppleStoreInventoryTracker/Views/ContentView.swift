@@ -3,7 +3,7 @@ import SwiftUI
 struct ContentView: View {
     let store: TaskStore
     @State private var selection = "monitor"
-    @State private var editing: ScanTask?
+    @State private var showingAddProduct = false
     @State private var deleting: ScanTask?
     @State private var actionError: String?
 
@@ -25,7 +25,7 @@ struct ContentView: View {
             .navigationTitle(selection == "settings" ? "配置" : " 产品库存监控")
         }
         .frame(minWidth: 780, minHeight: 520)
-        .sheet(item: $editing) { task in TaskEditor(store: store, initial: task) }
+        .sheet(isPresented: $showingAddProduct) { TaskEditor(store: store) }
         .alert("删除扫描任务？", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } })) {
             Button("取消", role: .cancel) { deleting = nil }
             Button("删除", role: .destructive) {
@@ -49,7 +49,7 @@ struct ContentView: View {
                 } description: {
                     Text("添加型号，开始监测到店取货库存。")
                 } actions: {
-                    Button("添加产品", systemImage: "plus") { editing = ScanTask() }
+                    Button("添加产品", systemImage: "plus") { showingAddProduct = true }
                         .buttonStyle(.borderedProminent).disabled(store.storageError != nil)
                 }
             } else {
@@ -60,7 +60,7 @@ struct ContentView: View {
                                          start: {
                                 if let error = store.validationError(for: task) { actionError = error }
                                 else { store.start(task) }
-                            }, edit: { editing = task }, delete: { deleting = task })
+                            }, delete: { deleting = task })
                         }
                     }.padding(24)
                 }
@@ -70,7 +70,7 @@ struct ContentView: View {
         .background(Color(nsColor: store.tasks.isEmpty ? .textBackgroundColor : .underPageBackgroundColor))
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button("添加产品", systemImage: "plus") { editing = ScanTask() }
+                Button("添加产品", systemImage: "plus") { showingAddProduct = true }
                     .keyboardShortcut("n").disabled(store.storageError != nil)
             }
         }
@@ -82,7 +82,6 @@ private struct ScanTaskCard: View {
     let defaults: ScanDefaults
     let runner: ContentViewModel
     let start: () -> Void
-    let edit: () -> Void
     let delete: () -> Void
     @State private var expanded = false
     @State private var hovering = false
@@ -90,8 +89,7 @@ private struct ScanTaskCard: View {
     private var effective: ScanDefaults { task.resolved(using: defaults) }
 
     private var regionLabel: String {
-        let region = effective.region
-        return "\(region.city) · \(region.district)"
+        effective.region.city
     }
 
     private var status: String {
@@ -102,10 +100,10 @@ private struct ScanTaskCard: View {
     }
 
     private var stockSummary: String {
-        guard let inventory = runner.inventoryInfos.first else { return regionLabel }
+        guard let inventory = runner.inventoryInfos.first else { return "暂无库存信息" }
         let stock = inventory.availableStores.isEmpty ? "暂无现货" : "\(inventory.availableStores.count) 家可取货"
         let stale = hasCurrentResult ? "" : " · 上次结果"
-        return "\(regionLabel) · \(stock)\(stale)"
+        return "\(stock)\(stale)"
     }
 
     var body: some View {
@@ -181,7 +179,6 @@ private struct ScanTaskCard: View {
                     else { start() }
                 }
             )
-            CardIconAction(title: "编辑", symbol: "slider.horizontal.3", destination: .action(edit))
             CardIconAction(title: "删除", symbol: "trash", destination: .action(delete), color: .red)
             CardIconAction(
                 title: "在 Apple 官网购买",
@@ -208,22 +205,52 @@ private struct ScanTaskCard: View {
         return "\(inventory.availableStores.count) 家可取货"
     }
 
-    @ViewBuilder
     private var product: some View {
-        if let inventory = runner.inventoryInfos.first {
-            ProductInventoryHeader(inventory: inventory, title: task.name.isEmpty ? nil : task.name, summary: highlightedAvailability == nil ? stockSummary : regionLabel, highlightedAvailability: highlightedAvailability)
-        } else {
-            HStack(spacing: 12) {
-                Image(systemName: "shippingbox").font(.title2).foregroundStyle(.tertiary)
-                    .frame(width: 52, height: 52)
-                    .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(task.name.isEmpty ? task.product : task.name).font(.headline).lineLimit(2)
-                    Text(regionLabel).font(.caption).foregroundStyle(.secondary)
+        ProductInventoryHeader(
+            product: task.product,
+            title: task.name.isEmpty ? (runner.inventoryInfos.first?.productName ?? "待查询产品") : task.name
+        ) {
+            configurationSummary
+            Group {
+                if let highlightedAvailability {
+                    Label(highlightedAvailability, systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                        .fontWeight(.semibold)
+                } else {
+                    Text(stockSummary).foregroundStyle(.secondary)
                 }
             }
-            .padding(.vertical, 6)
+            .font(.caption)
         }
+    }
+
+    private var intervalLabel: String {
+        effective.interval % 60 == 0 ? "\(effective.interval / 60) 分钟" : "\(effective.interval) 秒"
+    }
+
+    private var notificationChannels: String {
+        [effective.appNotification ? "系统" : nil, effective.barkNotification ? "Bark" : nil]
+            .compactMap { $0 }
+            .joined(separator: ", ")
+    }
+
+    private var configurationSummary: some View {
+        HStack(spacing: 10) {
+            Label(regionLabel, systemImage: "mappin.and.ellipse")
+                .lineLimit(1)
+                .help(regionLabel)
+            Label(intervalLabel, systemImage: "clock")
+                .fixedSize()
+                .help("扫描间隔：\(intervalLabel)")
+            if !notificationChannels.isEmpty {
+                Label(notificationChannels, systemImage: "bell")
+                    .fixedSize()
+                    .help("已开启通知：\(notificationChannels)")
+                    .accessibilityLabel("已开启通知：\(notificationChannels)")
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
     }
 
     private var details: some View {

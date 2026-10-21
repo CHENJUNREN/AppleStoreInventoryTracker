@@ -71,12 +71,10 @@ final class TaskStore {
     }
 
     func validationError(for task: ScanTask) -> String? {
-        guard !task.normalizedProduct.isEmpty,
-              !task.normalizedProduct.contains(where: { $0.isWhitespace || $0 == "," || $0 == "，" }) else { return "请输入一个产品型号，不要使用逗号分隔。" }
+        guard !task.normalizedProduct.isEmpty else { return "请输入产品型号。" }
         let effective = task.resolved(using: defaults)
         guard effective.isValid else { return "请填写完整地区，并输入有效的扫描间隔。" }
-        guard !effective.barkNotification || InventoryNotifier.barkURL(base: effective.barkURL, title: "test", body: "test") != nil else { return "请在自定义选项中填写有效的 Bark 地址，或关闭 Bark 推送。" }
-        guard !tasks.contains(where: { $0.id != task.id && $0.normalizedProduct == task.normalizedProduct && $0.resolved(using: defaults).region.location == effective.region.location }) else { return "该型号在此地区已经有一个任务。" }
+        guard !effective.barkNotification || InventoryNotifier.barkURL(base: effective.barkURL, title: "test", body: "test") != nil else { return "请填写有效的 Bark 地址，或关闭 Bark 推送。" }
         return nil
     }
 
