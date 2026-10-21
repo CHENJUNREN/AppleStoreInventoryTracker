@@ -85,6 +85,8 @@ private struct ScanTaskCard: View {
     let edit: () -> Void
     let delete: () -> Void
     @State private var expanded = false
+    @State private var hovering = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var effective: ScanDefaults { task.resolved(using: defaults) }
 
     private var regionLabel: String {
@@ -102,71 +104,114 @@ private struct ScanTaskCard: View {
     private var stockSummary: String {
         guard let inventory = runner.inventoryInfos.first else { return regionLabel }
         let stock = inventory.availableStores.isEmpty ? "暂无现货" : "\(inventory.availableStores.count) 家可取货"
-        let stale = !runner.isTracking || !runner.hasCompletedRequest || runner.lastError != nil ? " · 上次结果" : ""
+        let stale = hasCurrentResult ? "" : " · 上次结果"
         return "\(regionLabel) · \(stock)\(stale)"
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 16) {
-                product
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Text(status)
-                    .font(.caption).monospacedDigit()
-                    .frame(width: 64, alignment: .trailing)
-                    .foregroundStyle(runner.lastError == nil ? Color.secondary : Color.orange)
-                    .help(runner.isTracking ? runner.countdownLabel : status)
-                    .accessibilityLabel(runner.isTracking && !runner.isQuerying ? "\(runner.countdownLabel)，\(status)" : status)
-                HStack(spacing: 6) {
-                    iconButton(runner.isTracking ? "停止扫描" : "开始扫描", symbol: runner.isTracking ? "stop.fill" : "play.fill") {
-                        if runner.isTracking { runner.stopTracking(preservingResults: true) } else { start() }
-                    }
-                    iconButton("编辑", symbol: "pencil", action: edit)
-                    iconButton("删除", symbol: "trash", color: .red, action: delete)
-                    iconButton(expanded ? "收起详情" : "展开详情", symbol: expanded ? "chevron.up" : "chevron.down") {
-                        withAnimation(.easeInOut(duration: 0.15)) { expanded.toggle() }
-                    }
-                    .accessibilityValue(expanded ? "已展开" : "已收起")
-                }
+            // Keep disclosure and actions as sibling controls so actions never toggle details.
+            HStack(spacing: 0) {
+                disclosureButton
+                actions
             }
             if expanded {
-                Divider().padding(.vertical, 16)
-                details
+                VStack(alignment: .leading, spacing: 16) {
+                    Divider()
+                    details.textSelection(.enabled)
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
             }
         }
-        .padding(20)
-        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
+        .background {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.primary.opacity(hovering ? 0.025 : 0))
+                        .allowsHitTesting(false)
+                }
+        }
+    }
+
+    private var disclosureButton: some View {
+        Button {
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.15)) {
+                expanded.toggle()
+            }
+        } label: {
+            HStack(spacing: 16) {
+                product.frame(maxWidth: .infinity, alignment: .leading)
+                statusLabel
+            }
+            .padding(20)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(expanded ? "收起详情" : "查看门店库存")
+        .accessibilityValue(expanded ? "已展开" : "已收起")
+        .onHover { hovering = $0 }
+    }
+
+    private var isCountingDown: Bool {
+        runner.isTracking && !runner.isQuerying && runner.lastError == nil
+    }
+
+    private var statusLabel: some View {
+        Text(status)
+            .font(.caption)
+            .monospacedDigit()
+            .contentTransition(reduceMotion ? .identity : (isCountingDown ? .numericText(countsDown: true) : .opacity))
+            // Scope animation to the label so each tick cannot animate the card or its actions.
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: status)
+            .frame(width: 64, alignment: .trailing)
+            .foregroundStyle(runner.lastError == nil ? Color.secondary : Color.orange)
+            .help(runner.isTracking ? runner.countdownLabel : status)
+            .accessibilityLabel(isCountingDown ? "\(runner.countdownLabel)，\(status)" : status)
+    }
+
+    private var actions: some View {
+        HStack(spacing: 6) {
+            CardIconAction(
+                title: runner.isTracking ? "停止扫描" : "开始扫描",
+                symbol: runner.isTracking ? "stop.fill" : "play.fill",
+                destination: .action {
+                    if runner.isTracking { runner.stopTracking(preservingResults: true) }
+                    else { start() }
+                }
+            )
+            CardIconAction(title: "编辑", symbol: "slider.horizontal.3", destination: .action(edit))
+            CardIconAction(title: "删除", symbol: "trash", destination: .action(delete), color: .red)
+            CardIconAction(
+                title: "在 Apple 官网购买",
+                symbol: "rectangle.portrait.and.arrow.right",
+                destination: .link(purchaseURL)
+            )
+            .padding(.leading, 8)
+        }
+        .padding(.trailing, 20)
+        .padding(.vertical, 20)
+    }
+
+    private var purchaseURL: URL? {
+        runner.inventoryInfos.first?.purchaseURL ?? AppleProductPage.purchaseURL(for: task.product)
+    }
+
+    private var hasCurrentResult: Bool {
+        runner.isTracking && runner.hasCompletedRequest && runner.lastError == nil
     }
 
     private var highlightedAvailability: String? {
-        guard runner.isTracking, runner.hasCompletedRequest, runner.lastError == nil,
+        guard hasCurrentResult,
               let inventory = runner.inventoryInfos.first, !inventory.availableStores.isEmpty else { return nil }
         return "\(inventory.availableStores.count) 家可取货"
-    }
-
-    private func iconButton(_ title: String, symbol: String, color: Color = .secondary, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 13, weight: .medium))
-                .frame(width: 28, height: 28)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.borderless)
-        .foregroundStyle(color)
-        .help(title)
-        .accessibilityLabel(title)
     }
 
     @ViewBuilder
     private var product: some View {
         if let inventory = runner.inventoryInfos.first {
-            if let url = inventory.purchaseURL {
-                Link(destination: url) {
-                    ProductInventoryHeader(inventory: inventory, title: task.name.isEmpty ? nil : task.name, summary: highlightedAvailability == nil ? stockSummary : regionLabel, highlightedAvailability: highlightedAvailability)
-                }.buttonStyle(.plain).help("在 Apple 官网查看产品")
-            } else {
-                ProductInventoryHeader(inventory: inventory, title: task.name.isEmpty ? nil : task.name, summary: highlightedAvailability == nil ? stockSummary : regionLabel, highlightedAvailability: highlightedAvailability)
-            }
+            ProductInventoryHeader(inventory: inventory, title: task.name.isEmpty ? nil : task.name, summary: highlightedAvailability == nil ? stockSummary : regionLabel, highlightedAvailability: highlightedAvailability)
         } else {
             HStack(spacing: 12) {
                 Image(systemName: "shippingbox").font(.title2).foregroundStyle(.tertiary)
@@ -185,7 +230,7 @@ private struct ScanTaskCard: View {
         VStack(alignment: .leading, spacing: 12) {
             if let error = runner.lastError {
                 Label(error, systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.orange).textSelection(.enabled)
+                    .foregroundStyle(.orange)
             }
             if let inventory = runner.inventoryInfos.first {
                 ForEach(inventory.stores) { shop in
@@ -193,7 +238,7 @@ private struct ScanTaskCard: View {
                         Text(shop.storeName)
                         Spacer()
                         Label(shop.isProductAvailable ? "可取货" : "暂无现货", systemImage: shop.isProductAvailable ? "checkmark.circle.fill" : "minus.circle")
-                            .foregroundStyle(shop.isProductAvailable && runner.isTracking && runner.hasCompletedRequest && runner.lastError == nil ? Color.green : Color.secondary)
+                            .foregroundStyle(shop.isProductAvailable && hasCurrentResult ? Color.green : Color.secondary)
                     }
                 }
             } else if runner.lastError == nil {
@@ -207,5 +252,54 @@ private struct ScanTaskCard: View {
                     .padding(.top, 8)
             }
         }.font(.caption)
+    }
+}
+
+/// A shared appearance for card actions, preserving native button and link semantics.
+private struct CardIconAction: View {
+    enum Destination {
+        case action(() -> Void)
+        case link(URL?)
+    }
+
+    let title: String
+    let symbol: String
+    let destination: Destination
+    var color: Color = .secondary
+
+    private var isUnavailable: Bool {
+        if case .link(nil) = destination { return true }
+        return false
+    }
+
+    private var accessibleTitle: String {
+        isUnavailable ? "购买链接不可用" : title
+    }
+
+    var body: some View {
+        Group {
+            switch destination {
+            case .action(let action):
+                Button(action: action) { label }
+            case .link(let url):
+                if let url {
+                    Link(destination: url) { label }
+                } else {
+                    Button {} label: { label }
+                }
+            }
+        }
+        .buttonStyle(.borderless)
+        .foregroundStyle(isUnavailable ? Color.secondary.opacity(0.5) : color)
+        .disabled(isUnavailable)
+        .help(accessibleTitle)
+        .accessibilityLabel(accessibleTitle)
+    }
+
+    private var label: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 13, weight: .medium))
+            .frame(width: 28, height: 28)
+            .contentShape(Rectangle())
     }
 }
