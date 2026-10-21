@@ -93,10 +93,15 @@ private struct ScanTaskCard: View {
     }
 
     private var status: String {
+        guard runner.isTracking else { return runner.hasStarted ? "已停止" : "未开始" }
         if runner.isQuerying { return "查询中" }
         if runner.lastError != nil { return "等待重试" }
-        if runner.isTracking { return runner.countdownText }
-        return runner.hasStarted ? "已停止" : "未开始"
+        return runner.countdownText
+    }
+
+    private var trackingColor: Color {
+        guard runner.isTracking else { return .secondary }
+        return runner.lastError == nil ? .blue : .orange
     }
 
     private var stockSummary: String {
@@ -128,6 +133,11 @@ private struct ScanTaskCard: View {
                 .overlay {
                     RoundedRectangle(cornerRadius: 12)
                         .fill(Color.primary.opacity(hovering ? 0.025 : 0))
+                        .allowsHitTesting(false)
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(trackingColor.opacity(runner.isTracking ? 0.4 : 0.12), lineWidth: 1)
                         .allowsHitTesting(false)
                 }
         }
@@ -164,7 +174,7 @@ private struct ScanTaskCard: View {
             // Scope animation to the label so each tick cannot animate the card or its actions.
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: status)
             .frame(width: 64, alignment: .trailing)
-            .foregroundStyle(runner.lastError == nil ? Color.secondary : Color.orange)
+            .foregroundStyle(runner.isTracking && runner.lastError != nil ? Color.orange : Color.secondary)
             .help(runner.isTracking ? runner.countdownLabel : status)
             .accessibilityLabel(isCountingDown ? "\(runner.countdownLabel)，\(status)" : status)
     }
@@ -260,7 +270,7 @@ private struct ScanTaskCard: View {
                     .foregroundStyle(.orange)
             }
             if let inventory = runner.inventoryInfos.first {
-                ForEach(inventory.stores) { shop in
+                ForEach(inventory.stores.filter(\.isProductAvailable) + inventory.stores.filter { !$0.isProductAvailable }) { shop in
                     HStack {
                         Text(shop.storeName)
                         Spacer()
