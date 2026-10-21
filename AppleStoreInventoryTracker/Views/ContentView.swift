@@ -95,7 +95,7 @@ private struct ScanTaskCard: View {
     private var status: String {
         guard runner.isTracking else { return runner.hasStarted ? "已停止" : "未开始" }
         if runner.isQuerying { return "查询中" }
-        if runner.lastError != nil { return "等待重试" }
+        if runner.lastError != nil { return "重试 \(runner.countdownText)" }
         return runner.countdownText
     }
 
@@ -163,7 +163,7 @@ private struct ScanTaskCard: View {
     }
 
     private var isCountingDown: Bool {
-        runner.isTracking && !runner.isQuerying && runner.lastError == nil
+        runner.isTracking && !runner.isQuerying
     }
 
     private var statusLabel: some View {
@@ -173,7 +173,8 @@ private struct ScanTaskCard: View {
             .contentTransition(reduceMotion ? .identity : (isCountingDown ? .numericText(countsDown: true) : .opacity))
             // Scope animation to the label so each tick cannot animate the card or its actions.
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: status)
-            .frame(width: 64, alignment: .trailing)
+            .fixedSize(horizontal: true, vertical: false)
+            .frame(minWidth: 64, alignment: .trailing)
             .foregroundStyle(runner.isTracking && runner.lastError != nil ? Color.orange : Color.secondary)
             .help(runner.isTracking ? runner.countdownLabel : status)
             .accessibilityLabel(isCountingDown ? "\(runner.countdownLabel)，\(status)" : status)
