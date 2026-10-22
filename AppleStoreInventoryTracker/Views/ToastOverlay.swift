@@ -21,6 +21,23 @@ struct ToastOverlay: ViewModifier {
     }
 
     private func toast(_ message: ToastCenter.Message) -> some View {
+        toastSurface(message)
+            .frame(maxWidth: 420)
+    }
+
+    @ViewBuilder
+    private func toastSurface(_ message: ToastCenter.Message) -> some View {
+        if #available(macOS 26.0, *) {
+            toastContent(message)
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 20))
+        } else {
+            toastContent(message)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
+                .shadow(color: .black.opacity(0.08), radius: 10, y: 3)
+        }
+    }
+
+    private func toastContent(_ message: ToastCenter.Message) -> some View {
         HStack(spacing: 10) {
             Image(systemName: message.kind == .success ? "checkmark.circle.fill" : message.kind == .error ? "exclamationmark.circle.fill" : "info.circle")
                 .foregroundStyle(message.kind == .error ? Color.orange : Color.secondary)
@@ -31,9 +48,5 @@ struct ToastOverlay: ViewModifier {
                 .help("关闭提示")
         }
         .padding(.horizontal, 16).padding(.vertical, 12)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-        .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(.primary.opacity(0.08)) }
-        .shadow(color: .black.opacity(0.08), radius: 10, y: 3)
-        .frame(maxWidth: 420)
     }
 }

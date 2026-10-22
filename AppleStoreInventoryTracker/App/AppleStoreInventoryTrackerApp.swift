@@ -1,14 +1,39 @@
 import SwiftUI
 import AppKit
 
+enum AppAppearance: String, CaseIterable {
+    static let storageKey = "appAppearance"
+    case system, light, dark
+
+    var title: String {
+        switch self {
+        case .system: "跟随系统"
+        case .light: "浅色"
+        case .dark: "深色"
+        }
+    }
+
+    var appearance: NSAppearance? {
+        switch self {
+        case .system: nil
+        case .light: NSAppearance(named: .aqua)
+        case .dark: NSAppearance(named: .darkAqua)
+        }
+    }
+}
+
 @main
 struct AppleStoreInventoryTrackerApp: App {
     @NSApplicationDelegateAdaptor(DesktopAppDelegate.self) private var delegate
     @State private var store = TaskStore()
+    @AppStorage(AppAppearance.storageKey) private var appearance = AppAppearance.system
 
     var body: some Scene {
         Window("Apple 库存监测", id: "main") {
             ContentView(store: store)
+                .onChange(of: appearance, initial: true) { _, value in
+                    NSApp.appearance = value.appearance
+                }
                 .background(WindowRegistration { window in
                     delegate.mainWindow = window
                     delegate.store = store

@@ -2,13 +2,20 @@ import SwiftUI
 import UserNotifications
 
 enum ConfigurationCategory: String, CaseIterable {
-    case monitoring, purchase
-    var title: String { self == .monitoring ? "监控默认值" : "购买辅助" }
+    case general, monitoring, purchase
+    var title: String {
+        switch self {
+        case .general: "通用"
+        case .monitoring: "监控默认值"
+        case .purchase: "购买辅助"
+        }
+    }
 }
 
 struct ConfigurationView: View {
     let store: TaskStore
     @Binding var category: ConfigurationCategory
+    @AppStorage(AppAppearance.storageKey) private var appearance = AppAppearance.system
     @State private var draft = ScanDefaults()
     @State private var pickup = PickupProfile()
     @State private var notificationStatus = "读取中…"
@@ -29,8 +36,19 @@ struct ConfigurationView: View {
             .padding(.top, 20)
             .padding(.bottom, 4)
             Form {
-                if category == .monitoring { monitoringSettings }
-                else { purchaseSettings }
+                switch category {
+                case .general:
+                    Section("外观") {
+                        Picker("显示模式", selection: $appearance) {
+                            ForEach(AppAppearance.allCases, id: \.self) { mode in
+                                Text(mode.title).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
+                case .monitoring: monitoringSettings
+                case .purchase: purchaseSettings
+                }
             }
             .formStyle(.grouped)
         }
@@ -38,8 +56,10 @@ struct ConfigurationView: View {
         .frame(maxWidth: .infinity)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button("保存", action: save)
-                    .disabled(store.storageError != nil || !hasChanges)
+                if category != .general {
+                    Button("保存", action: save)
+                        .disabled(store.storageError != nil || !hasChanges)
+                }
             }
         }
         .onAppear { draft = store.defaults; pickup = store.purchaseAssistant.profile }
@@ -48,7 +68,11 @@ struct ConfigurationView: View {
     }
 
     private var hasChanges: Bool {
-        category == .monitoring ? draft != store.defaults : pickup != store.purchaseAssistant.profile
+        switch category {
+        case .general: false
+        case .monitoring: draft != store.defaults
+        case .purchase: pickup != store.purchaseAssistant.profile
+        }
     }
 
     @ViewBuilder private var monitoringSettings: some View {
