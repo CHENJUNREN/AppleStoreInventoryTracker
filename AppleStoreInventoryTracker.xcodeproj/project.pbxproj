@@ -35,6 +35,9 @@
 		0A5FB6BEF543457FB3EE5B51 /* IPhoneCatalogParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8D8A730C33C46F6A7F456EF /* IPhoneCatalogParser.swift */; };
 		0C5B0ACA4A9F48689183E5FD /* IPhoneCatalogService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9101D1568FC41CCA10562BA /* IPhoneCatalogService.swift */; };
 		703FE28F84A246CABC02C84C /* IPhoneProductPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 690892A0271A484CBB1E7B3F /* IPhoneProductPicker.swift */; };
+		2AF42CD84B294715996F37A1 /* PurchaseSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0F6F7C42814ED2A8896360 /* PurchaseSettings.swift */; };
+		B5F7A6BEB01E407BA285CBEC /* PurchaseAssistant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CD95981CBA84CD883161EA3 /* PurchaseAssistant.swift */; };
+		EE872161CD23433A84C86612 /* PurchaseAssistant in Resources */ = {isa = PBXBuildFile; fileRef = C2B8DB1AF64642B7AE231ED3; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -68,6 +71,9 @@
 		E8D8A730C33C46F6A7F456EF /* IPhoneCatalogParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPhoneCatalogParser.swift; sourceTree = "<group>"; };
 		C9101D1568FC41CCA10562BA /* IPhoneCatalogService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPhoneCatalogService.swift; sourceTree = "<group>"; };
 		690892A0271A484CBB1E7B3F /* IPhoneProductPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPhoneProductPicker.swift; sourceTree = "<group>"; };
+		AB0F6F7C42814ED2A8896360 /* PurchaseSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchaseSettings.swift; sourceTree = "<group>"; };
+		8CD95981CBA84CD883161EA3 /* PurchaseAssistant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchaseAssistant.swift; sourceTree = "<group>"; };
+		C2B8DB1AF64642B7AE231ED3 /* PurchaseAssistant */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Resources/PurchaseAssistant; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -100,6 +106,7 @@
 		A2240AE32ADD2229006AC094 /* AppleStoreInventoryTracker */ = {
 			isa = PBXGroup;
 			children = (
+				C2B8DB1AF64642B7AE231ED3 /* PurchaseAssistant */,
 				5CBD42E107D041A0924E7DFB /* App */,
 				64F7064C50B345DC886BAC98 /* Models */,
 				3C4A4836FC3043D0955EA49E /* Monitoring */,
@@ -131,6 +138,7 @@
 		64F7064C50B345DC886BAC98 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				AB0F6F7C42814ED2A8896360 /* PurchaseSettings.swift */,
 				1C4967F7DF754539B94D33AC /* ScanTask.swift */,
 				E41CD3CF1C9C4BBE8AF6EAE3 /* IPhoneCatalog.swift */,
 				49F41D24A5D845F288DD178B /* Inventory.swift */,
@@ -155,6 +163,7 @@
 		E750CE32F5444F0093E1454B /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				8CD95981CBA84CD883161EA3 /* PurchaseAssistant.swift */,
 				86916DAC626547888390A5E5 /* AppleProductPage.swift */,
 				C9101D1568FC41CCA10562BA /* IPhoneCatalogService.swift */,
 				E8D8A730C33C46F6A7F456EF /* IPhoneCatalogParser.swift */,
@@ -239,6 +248,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EE872161CD23433A84C86612 /* PurchaseAssistant in Resources */,
 				A2328F2F2CB817E9006B3E6A /* Assets.xcassets in Resources */,
 				A2240AEC2ADD222A006AC094 /* Preview Assets.xcassets in Resources */,
 			);
@@ -251,6 +261,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B5F7A6BEB01E407BA285CBEC /* PurchaseAssistant.swift in Sources */,
+				2AF42CD84B294715996F37A1 /* PurchaseSettings.swift in Sources */,
 				AD348CCAFB044D91AF410343 /* ProductNumberHelp.swift in Sources */,
 				27648A723A1241BCA29BE394 /* ConfigurationView.swift in Sources */,
 				ED7767E5FBC44164A165CF56 /* TaskEditor.swift in Sources */,

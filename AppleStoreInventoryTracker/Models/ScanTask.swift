@@ -27,6 +27,7 @@ struct ScanTask: Codable, Identifiable, Equatable {
     var barkNotification: Bool?
     var barkURL: String?
     var customizationEnabled: Bool?
+    var purchase: TaskPurchaseSettings?
 
     func resolved(using defaults: ScanDefaults) -> ScanDefaults {
         var result = defaults

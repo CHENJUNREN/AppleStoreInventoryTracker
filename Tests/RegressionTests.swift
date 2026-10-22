@@ -157,6 +157,7 @@ struct RegressionTests {
     @MainActor
     static func main() async throws {
         await restartPresentation()
+        try purchaseConfiguration()
         desktopPersistence()
         independentConfigurationSnapshots()
         try customizationEditorState()
@@ -177,6 +178,40 @@ struct RegressionTests {
         await presentation()
         try await client()
         print("\(passed) regression scenarios passed; no external requests or notifications sent.")
+    }
+
+    @MainActor
+    private static func purchaseConfiguration() throws {
+        let original = ScanTask(product: "MJT84CH/A")
+        let legacy = try JSONDecoder().decode(ScanTask.self, from: JSONEncoder().encode(original))
+        expect(legacy.purchase == nil, "legacy tasks do not enable purchase assistance")
+        var settings = TaskPurchaseSettings(enabled: true, stores: [
+            PreferredStore(id: "R002", name: "Second"), PreferredStore(id: "R001", name: "First"),
+            PreferredStore(id: "R003", name: "Unavailable")], appleCare: true)
+        let inventory = ProductInventory(id: "MJT84CH/A", stores: [
+            StoreInventoryInfo(storeName: "First", storeImageUrl: "", productName: "Phone", isProductAvailable: true, storeNumber: "R001"),
+            StoreInventoryInfo(storeName: "Second", storeImageUrl: "", productName: "Phone", isProductAvailable: true, storeNumber: "R002")])
+        expect(settings.availableStores(in: inventory).map(\.id) == ["R002", "R001"], "availability respects user priority, not API order")
+        settings.stores.swapAt(0, 1)
+        settings.stores.removeLast()
+        var task = original
+        task.purchase = settings
+        let restored = try JSONDecoder().decode(ScanTask.self, from: JSONEncoder().encode(task))
+        expect(restored.purchase == settings, "ordering, removal and AppleCare persist together")
+        expect(restored.frozen(using: ScanDefaults()).purchase == settings, "freezing scan settings preserves purchase preferences")
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let assistant = PurchaseAssistant(directory: directory)
+        let profile = PickupProfile(lastName: "测试", firstName: "用户", emailAddress: "test@example.com", fullDaytimePhone: "13800000000", nationalIdSelf: "123X", payment: .wechat)
+        expect(assistant.saveProfile(profile), "complete profile saves")
+        expect(PurchaseAssistant(directory: directory).profile == profile, "profile and WeChat preference survive relaunch")
+        let attributes = try FileManager.default.attributesOfItem(atPath: directory.appendingPathComponent("profile.json").path)
+        expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o600, "profile is owner-readable only")
+        var masked = profile
+        masked.emailAddress = "t***@example.com"
+        expect(!assistant.saveProfile(masked), "masked website values cannot replace real profile")
+        expect(PurchaseAssistant(directory: directory).profile == profile, "failed save preserves previous profile")
+        pass("purchase priority, removal, legacy defaults, independent profile persistence and masking validation")
     }
 
     private static func catalogFixture(_ name: String) throws -> String {
