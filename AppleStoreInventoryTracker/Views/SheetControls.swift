@@ -26,6 +26,7 @@ struct SheetLayout<Content: View>: View {
     let title: String
     @ViewBuilder var content: () -> Content
     @Environment(\.dismiss) private var dismiss
+    @Environment(ToastCenter.self) private var toast
 
     var body: some View {
         VStack(spacing: 0) {
@@ -42,6 +43,7 @@ struct SheetLayout<Content: View>: View {
             .padding(.bottom, 12)
             content()
         }
+        .modifier(ToastOverlay(center: toast))
     }
 
     @ViewBuilder

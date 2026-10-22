@@ -5,7 +5,7 @@ struct RegionFields: View {
     var body: some View {
         TextField("省份", text: $region.province)
         TextField("城市", text: $region.city)
-        TextField("区", text: $region.district)
+        TextField("区／县", text: $region.district)
     }
 }
 
@@ -13,7 +13,6 @@ struct TaskEditor: View {
     let store: TaskStore
     @Environment(\.dismiss) private var dismiss
     @State private var draft: ScanTaskDraft
-    @State private var error: String?
     @State private var selectedProduct: IPhoneVariant?
     @State private var startAfterSaving = true
 
@@ -28,33 +27,33 @@ struct TaskEditor: View {
                 Form {
                     IPhoneProductPicker(product: $selectedProduct)
                     Section {
-                        Toggle("自定义监控设置", isOn: Binding(
+                        Toggle("单独设置此任务", isOn: Binding(
                             get: { draft.customizationEnabled },
                             set: {
                                 draft.setCustomizationEnabled($0, defaults: store.defaults)
-                                error = nil
                             }
                         ))
-                    } footer: {
-                        Text("关闭时使用「配置」页中的地区、扫描间隔和通知设置，保存后作为此产品的独立配置。")
+                    } header: { Text("监控设置") } footer: {
+                        if !draft.customizationEnabled {
+                            Text("使用「配置 → 监控默认值」，保存后独立使用。")
+                        }
                     }
                     if draft.customizationEnabled {
-                        Section("地区") {
+                        Section("查询范围") {
                             RegionFields(region: $draft.settings.region)
                         }
-                        Section("扫描") {
-                            TextField("间隔（秒）", value: $draft.settings.interval, format: .number)
+                        Section("扫描频率") {
+                            TextField("扫描间隔（秒）", value: $draft.settings.interval, format: .number)
                         }
-                        Section("通知") {
+                        Section("库存通知") {
                             Toggle("系统通知", isOn: $draft.settings.appNotification)
-                            Toggle("Bark 推送", isOn: $draft.settings.barkNotification)
+                            Toggle("Bark", isOn: $draft.settings.barkNotification)
                             if draft.settings.barkNotification {
                                 TextField("Bark 地址", text: $draft.settings.barkURL, prompt: Text("https://api.day.app/{Key}/"))
                             }
                         }
                     }
                 }.formStyle(.grouped)
-                if let error { Text(error).font(.caption).foregroundStyle(.red).padding(.horizontal, 24) }
                 HStack(spacing: 12) {
                     Toggle("保存后开始", isOn: $startAfterSaving).toggleStyle(.checkbox).fixedSize()
                     Spacer()
@@ -80,9 +79,10 @@ struct TaskEditor: View {
         var task = draft.savedTask
         task.product = selectedProduct.partNumber
         task.name = selectedProduct.displayName
-        error = store.validationError(for: task)
-        guard error == nil else { return }
+        if let error = store.validationError(for: task) { store.toast.show(error, kind: .error); return }
         store.save(task, start: start)
+        guard store.storageError == nil else { return }
+        store.toast.show("产品已添加")
         dismiss()
     }
 }

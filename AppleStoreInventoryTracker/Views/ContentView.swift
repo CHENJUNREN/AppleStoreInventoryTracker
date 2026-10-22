@@ -3,9 +3,9 @@ import SwiftUI
 struct ContentView: View {
     let store: TaskStore
     @State private var selection = "monitor"
+    @State private var configurationCategory = ConfigurationCategory.monitoring
     @State private var showingAddProduct = false
     @State private var deleting: ScanTask?
-    @State private var actionError: String?
 
     var body: some View {
         NavigationSplitView {
@@ -17,7 +17,7 @@ struct ContentView: View {
         } detail: {
             Group {
                 if selection == "settings" {
-                    ConfigurationView(store: store)
+                    ConfigurationView(store: store, category: $configurationCategory)
                 } else {
                     monitoringPage
                 }
@@ -25,24 +25,29 @@ struct ContentView: View {
             .navigationTitle(selection == "settings" ? "配置" : " 产品库存监控")
         }
         .frame(minWidth: 780, minHeight: 520)
+        .modifier(ToastOverlay(center: store.toast))
+        .onChange(of: store.storageError, initial: true) { _, error in
+            if let error { store.toast.show(error, kind: .error) }
+        }
+        .onAppear {
+            if let error = store.purchaseAssistant.profileError { store.toast.show(error, kind: .error) }
+        }
         .sheet(isPresented: $showingAddProduct) { TaskEditor(store: store) }
         .alert("删除扫描任务？", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } })) {
             Button("取消", role: .cancel) { deleting = nil }
             Button("删除", role: .destructive) {
-                if let task = deleting { store.delete(task) }
+                if let task = deleting {
+                    store.delete(task)
+                    if store.storageError == nil { store.toast.show("任务已删除") }
+                }
                 deleting = nil
             }
         } message: { Text("该任务的扫描将停止，保存的配置将被删除。") }
-        .alert("无法开始扫描", isPresented: Binding(get: { actionError != nil }, set: { if !$0 { actionError = nil } })) {
-            Button("好") { actionError = nil }
-        } message: { Text(actionError ?? "") }
+        .environment(store.toast)
     }
 
     private var monitoringPage: some View {
         VStack(spacing: 0) {
-            if let error = store.storageError {
-                Text(error).foregroundStyle(.red).padding()
-            }
             if store.tasks.isEmpty {
                 ContentUnavailableView {
                     Label("添加第一个产品", systemImage: "shippingbox")
@@ -56,9 +61,9 @@ struct ContentView: View {
                 ScrollView {
                     LazyVStack(spacing: 14) {
                         ForEach(store.tasks) { task in
-                            ScanTaskCard(task: task, defaults: store.defaults, runner: store.runner(for: task.id),
+                            ScanTaskCard(task: task, store: store, openConfiguration: { configurationCategory = .purchase; selection = "settings" }, defaults: store.defaults, runner: store.runner(for: task.id),
                                          start: {
-                                if let error = store.validationError(for: task) { actionError = error }
+                                if let error = store.validationError(for: task) { store.toast.show(error, kind: .error) }
                                 else { store.start(task) }
                             }, delete: { deleting = task })
                         }
@@ -79,6 +84,9 @@ struct ContentView: View {
 
 private struct ScanTaskCard: View {
     let task: ScanTask
+    let store: TaskStore
+    let openConfiguration: () -> Void
+    @State private var showingPurchaseSettings = false
     let defaults: ScanDefaults
     let runner: ContentViewModel
     let start: () -> Void
@@ -121,11 +129,16 @@ private struct ScanTaskCard: View {
             if expanded {
                 VStack(alignment: .leading, spacing: 16) {
                     Divider()
+                    purchaseControls
+                    Divider()
                     details.textSelection(.enabled)
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 20)
             }
+        }
+        .sheet(isPresented: $showingPurchaseSettings) {
+            PurchaseSettingsView(store: store, task: task, openConfiguration: openConfiguration)
         }
         .background {
             RoundedRectangle(cornerRadius: 12)
@@ -141,6 +154,55 @@ private struct ScanTaskCard: View {
                         .allowsHitTesting(false)
                 }
         }
+    }
+
+    private var purchaseControls: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("有货时辅助购买")
+                Spacer()
+                Toggle("有货时辅助购买", isOn: Binding(
+                get: { task.purchase?.enabled == true },
+                set: { enabled in
+                    if enabled { showingPurchaseSettings = true }
+                    else {
+                        var settings = task.purchase ?? TaskPurchaseSettings()
+                        settings.enabled = false
+                        store.setPurchase(settings, for: task.id)
+                    }
+                }
+                )).toggleStyle(.switch).labelsHidden()
+            }
+            if let settings = task.purchase, settings.enabled {
+                HStack {
+                    Text(purchaseSummary(settings)).foregroundStyle(.secondary).lineLimit(2)
+                    Spacer()
+                    Button("设置…") { showingPurchaseSettings = true }
+                        .buttonStyle(.borderless)
+                        .disabled(store.purchaseAssistant.activeTask == task.id)
+                }.font(.caption)
+            }
+            if let message = store.purchaseAssistant.messages[task.id] {
+                HStack(alignment: .top) {
+                    Text(message).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("结束本次辅助") {
+                        var settings = task.purchase ?? TaskPurchaseSettings()
+                        settings.enabled = false
+                        store.setPurchase(settings, for: task.id)
+                        store.purchaseAssistant.reset(task.id)
+                    }
+                        .buttonStyle(.borderless)
+                        .help("关闭购买辅助并释放浏览器；再次开启后才会重新尝试。")
+                }.font(.caption)
+            }
+        }
+    }
+
+    private func purchaseSummary(_ settings: TaskPurchaseSettings) -> String {
+        let first = settings.stores.first?.name ?? "未选择门店"
+        let stores = settings.stores.count > 1 ? "\(first)等 \(settings.stores.count) 家门店" : first
+        return "\(stores) · AppleCare+ \(settings.appleCare ? "加购" : "不加购")"
     }
 
     private var disclosureButton: some View {
@@ -253,6 +315,9 @@ private struct ScanTaskCard: View {
             Label(intervalLabel, systemImage: "clock")
                 .fixedSize()
                 .help("扫描间隔：\(intervalLabel)")
+            if task.purchase?.enabled == true {
+                Label("购买辅助", systemImage: "bag").fixedSize()
+            }
             if !notificationChannels.isEmpty {
                 Label(notificationChannels, systemImage: "bell")
                     .fixedSize()
@@ -266,10 +331,6 @@ private struct ScanTaskCard: View {
 
     private var details: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if let error = runner.lastError {
-                Label(error, systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.orange)
-            }
             if let inventory = runner.inventoryInfos.first {
                 ForEach(inventory.stores.filter(\.isProductAvailable) + inventory.stores.filter { !$0.isProductAvailable }) { shop in
                     HStack {

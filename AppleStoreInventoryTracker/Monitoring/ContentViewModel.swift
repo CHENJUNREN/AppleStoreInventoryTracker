@@ -32,7 +32,10 @@ final class ContentViewModel {
         case .observing: return "观察库存变化 · 下次查询"
         }
     }
-    private(set) var lastError: String?
+    private(set) var lastError: String? {
+        didSet { if let lastError, lastError != oldValue { onError?(lastError) } }
+    }
+    @ObservationIgnored var onError: ((String) -> Void)?
     private(set) var lastSuccessAt: Date?
     @ObservationIgnored var onResult: ((CachedScanResult) -> Void)?
     @ObservationIgnored private var resultLocation: String?

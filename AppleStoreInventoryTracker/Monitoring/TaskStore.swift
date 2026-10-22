@@ -9,6 +9,8 @@ final class TaskStore {
         var tasks: [ScanTask]
         var results: [String: CachedScanResult]?
     }
+    let toast = ToastCenter()
+    let purchaseAssistant = PurchaseAssistant()
     private(set) var defaults = ScanDefaults()
     private(set) var tasks: [ScanTask] = []
     private(set) var storageError: String?
@@ -20,6 +22,9 @@ final class TaskStore {
 
     init(preferences: UserDefaults = .standard) {
         self.preferences = preferences
+        purchaseAssistant.onFeedback = { [weak self] text, isError in
+            self?.toast.show(text, kind: isError ? .error : .information)
+        }
         if let data = preferences.data(forKey: Self.storageKey) {
             do {
                 let snapshot = try JSONDecoder().decode(Snapshot.self, from: data)
@@ -61,10 +66,16 @@ final class TaskStore {
            result.inventories.allSatisfy({ $0.id == task.normalizedProduct }) {
             runner.restore(result)
         }
+        runner.onError = { [weak self] error in
+            self?.toast.show(error, kind: .error)
+        }
         runner.onResult = { [weak self] result in
             guard let self, self.tasks.contains(where: { $0.id == id }) else { return }
             self.results[id.uuidString] = result
             self.persist()
+            if let task = self.tasks.first(where: { $0.id == id }), self.runner(for: id).isTracking {
+                self.purchaseAssistant.consider(task: task, result: result)
+            }
         }
         runners[id] = runner
         return runner
@@ -107,7 +118,16 @@ final class TaskStore {
                              pushNotificationSettings: (settings.appNotification, settings.barkNotification, settings.barkURL))
     }
 
+    func setPurchase(_ settings: TaskPurchaseSettings, for id: UUID) {
+        guard storageError == nil, let index = tasks.firstIndex(where: { $0.id == id }) else { return }
+        guard !settings.enabled || (!settings.stores.isEmpty && purchaseAssistant.profile.validationError == nil && purchaseAssistant.ready) else { return }
+        tasks[index].purchase = settings
+        if !settings.enabled { purchaseAssistant.disable(id) }
+        persist()
+    }
+
     func delete(_ task: ScanTask) {
+        purchaseAssistant.reset(task.id)
         runner(for: task.id).stopTracking()
         runners.removeValue(forKey: task.id)
         results.removeValue(forKey: task.id.uuidString)
@@ -121,7 +141,10 @@ final class TaskStore {
         persist()
     }
 
-    func stopAll() { for runner in runners.values { runner.stopTracking(preservingResults: true) } }
+    func stopAll() {
+        for runner in runners.values { runner.stopTracking(preservingResults: true) }
+        purchaseAssistant.shutdown()
+    }
 
     private func persist() {
         guard storageError == nil else { return }

@@ -6,7 +6,7 @@ struct IPhoneProductPicker: View {
     @State private var catalog: IPhoneCatalog?
     @State private var selection = IPhoneSelection()
     @State private var loading = false
-    @State private var message: String?
+    @Environment(ToastCenter.self) private var toast
     @State private var image: NSImage?
 
     private var model: IPhoneModel? { catalog?.models.first { $0.id == selection.modelID } }
@@ -59,9 +59,6 @@ struct IPhoneProductPicker: View {
             } else {
                 Text("暂未获取商品目录").foregroundStyle(.secondary)
             }
-            if let message {
-                Text(message).font(.caption).foregroundStyle(.secondary)
-            }
         } header: {
             HStack {
                 Text("选择产品")
@@ -92,7 +89,6 @@ struct IPhoneProductPicker: View {
     private func load(forceRefresh: Bool) async {
         guard !loading else { return }
         loading = true
-        message = nil
         defer { loading = false }
         if catalog == nil { catalog = await service.cachedCatalog() }
         do {
@@ -110,7 +106,7 @@ struct IPhoneProductPicker: View {
             product = selection.variant(in: fresh)
         } catch {
             guard !Task.isCancelled else { return }
-            message = catalog == nil ? "加载失败，请稍后刷新重试。" : "刷新失败，当前显示上次保存的商品目录。"
+            toast.show(catalog == nil ? "加载失败，请稍后刷新重试" : "刷新失败，当前显示上次保存的商品目录", kind: .error)
         }
     }
 }

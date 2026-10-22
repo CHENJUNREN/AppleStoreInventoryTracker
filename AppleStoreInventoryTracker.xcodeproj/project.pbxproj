@@ -37,6 +37,7 @@
 		703FE28F84A246CABC02C84C /* IPhoneProductPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 690892A0271A484CBB1E7B3F /* IPhoneProductPicker.swift */; };
 		2AF42CD84B294715996F37A1 /* PurchaseSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0F6F7C42814ED2A8896360 /* PurchaseSettings.swift */; };
 		B5F7A6BEB01E407BA285CBEC /* PurchaseAssistant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CD95981CBA84CD883161EA3 /* PurchaseAssistant.swift */; };
+		41D94022B3B442D59586E938 /* PurchaseSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6BC190467D741568C2D718F /* PurchaseSettingsView.swift */; };
 		EE872161CD23433A84C86612 /* PurchaseAssistant in Resources */ = {isa = PBXBuildFile; fileRef = C2B8DB1AF64642B7AE231ED3; };
 		4CC1DA79E7A0483889706417 /* ToastCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1942D5A7944AE18813EE28; };
 		E1C24E0972D642ECB1D3A5CB /* ToastOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC68B084D5774E698C2902F1; };
@@ -75,6 +76,7 @@
 		690892A0271A484CBB1E7B3F /* IPhoneProductPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPhoneProductPicker.swift; sourceTree = "<group>"; };
 		AB0F6F7C42814ED2A8896360 /* PurchaseSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchaseSettings.swift; sourceTree = "<group>"; };
 		8CD95981CBA84CD883161EA3 /* PurchaseAssistant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchaseAssistant.swift; sourceTree = "<group>"; };
+		C6BC190467D741568C2D718F /* PurchaseSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchaseSettingsView.swift; sourceTree = "<group>"; };
 		C2B8DB1AF64642B7AE231ED3 /* PurchaseAssistant */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Resources/PurchaseAssistant; sourceTree = "<group>"; };
 		BF1942D5A7944AE18813EE28 /* ToastCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastCenter.swift; sourceTree = "<group>"; };
 		DC68B084D5774E698C2902F1 /* ToastOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastOverlay.swift; sourceTree = "<group>"; };
@@ -184,6 +186,7 @@
 			isa = PBXGroup;
 			children = (
 				DC68B084D5774E698C2902F1 /* ToastOverlay.swift */,
+				C6BC190467D741568C2D718F /* PurchaseSettingsView.swift */,
 				615124AAE23D49EAB3B9D869 /* ProductNumberHelp.swift */,
 				0F0C52C8C878434ABA6EBB2B /* ConfigurationView.swift */,
 				184412B562D745EC88C0C2E2 /* TaskEditor.swift */,
@@ -269,6 +272,7 @@
 			files = (
 				E1C24E0972D642ECB1D3A5CB /* ToastOverlay.swift in Sources */,
 				4CC1DA79E7A0483889706417 /* ToastCenter.swift in Sources */,
+				41D94022B3B442D59586E938 /* PurchaseSettingsView.swift in Sources */,
 				B5F7A6BEB01E407BA285CBEC /* PurchaseAssistant.swift in Sources */,
 				2AF42CD84B294715996F37A1 /* PurchaseSettings.swift in Sources */,
 				AD348CCAFB044D91AF410343 /* ProductNumberHelp.swift in Sources */,
