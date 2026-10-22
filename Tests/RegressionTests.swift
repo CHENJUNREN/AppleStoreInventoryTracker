@@ -156,6 +156,7 @@ struct RegressionTests {
 
     @MainActor
     static func main() async throws {
+        try await toastLifecycle()
         await restartPresentation()
         try purchaseConfiguration()
         desktopPersistence()
@@ -178,6 +179,32 @@ struct RegressionTests {
         await presentation()
         try await client()
         print("\(passed) regression scenarios passed; no external requests or notifications sent.")
+    }
+
+    @MainActor
+    private static func toastLifecycle() async throws {
+        let center = ToastCenter()
+        let window = UUID(), sheet = UUID()
+        center.register(window)
+        center.register(sheet)
+        expect(center.hosts.last == sheet, "only the frontmost sheet hosts feedback")
+        center.unregister(sheet)
+        expect(center.hosts.last == window, "sheet dismissal returns feedback to the window")
+        center.show("old", duration: .milliseconds(30))
+        try await Task.sleep(for: .milliseconds(10))
+        center.show("new", duration: .milliseconds(150))
+        try await Task.sleep(for: .milliseconds(50))
+        expect(center.message?.text == "new", "old timer cannot dismiss newer feedback")
+        try await Task.sleep(for: .milliseconds(140))
+        expect(center.message == nil, "feedback automatically disappears")
+        center.show("manual", duration: .milliseconds(30))
+        center.dismiss()
+        expect(center.message == nil, "manual close clears feedback")
+        center.show("replacement", duration: .seconds(1))
+        try await Task.sleep(for: .milliseconds(50))
+        expect(center.message?.text == "replacement", "manual dismissal cancels its old timer")
+        center.dismiss()
+        pass("global toast expiry, replacement, manual close and sheet handoff")
     }
 
     @MainActor
