@@ -19,7 +19,7 @@ enum InventoryError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidInput: return "型号、地区或扫描间隔无效"
+        case .invalidInput: return "型号、地区或查询间隔无效"
         case .httpStatus(let status, _): return "Apple 到店取货查询失败（HTTP \(status)）"
         case .invalidResponse: return "Apple 返回了非预期响应"
         case .invalidInventory: return "到店取货数据缺失或格式不符合预期"

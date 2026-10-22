@@ -11,7 +11,7 @@ struct ContentView: View {
         NavigationSplitView {
             List(selection: $selection) {
                 Label(" 产品库存监控", systemImage: "shippingbox").tag("monitor")
-                Label("配置", systemImage: "slider.horizontal.3").tag("settings")
+                Label("设置", systemImage: "slider.horizontal.3").tag("settings")
             }
             .navigationSplitViewColumnWidth(min: 160, ideal: 190, max: 240)
         } detail: {
@@ -22,7 +22,7 @@ struct ContentView: View {
                     monitoringPage
                 }
             }
-            .navigationTitle(selection == "settings" ? "配置" : " 产品库存监控")
+            .navigationTitle(selection == "settings" ? "设置" : " 产品库存监控")
         }
         .frame(minWidth: 780, minHeight: 520)
         .modifier(ToastOverlay(center: store.toast))
@@ -33,7 +33,7 @@ struct ContentView: View {
             if let error = store.purchaseAssistant.profileError { store.toast.show(error, kind: .error) }
         }
         .sheet(isPresented: $showingAddProduct) { TaskEditor(store: store) }
-        .alert("删除扫描任务？", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } })) {
+        .alert("删除监控任务？", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } })) {
             Button("取消", role: .cancel) { deleting = nil }
             Button("删除", role: .destructive) {
                 if let task = deleting {
@@ -42,7 +42,7 @@ struct ContentView: View {
                 }
                 deleting = nil
             }
-        } message: { Text("该任务的扫描将停止，保存的配置将被删除。") }
+        } message: { Text("该任务的监控将停止，保存的设置将被删除。") }
         .environment(store.toast)
     }
 
@@ -52,7 +52,7 @@ struct ContentView: View {
                 ContentUnavailableView {
                     Label("添加第一个产品", systemImage: "shippingbox")
                 } description: {
-                    Text("添加型号，开始监测到店取货库存。")
+                    Text("添加产品，开始监控到店取货库存。")
                 } actions: {
                     Button("添加产品", systemImage: "plus") { showingAddProduct = true }
                         .buttonStyle(.borderedProminent).disabled(store.storageError != nil)
@@ -193,7 +193,7 @@ private struct ScanTaskCard: View {
                         store.purchaseAssistant.reset(task.id)
                     }
                         .buttonStyle(.borderless)
-                        .help("关闭购买辅助并释放浏览器；再次开启后才会重新尝试。")
+                        .help("关闭辅助购买并释放浏览器；再次开启后才会重新尝试。")
                 }.font(.caption)
             }
         }
@@ -245,7 +245,7 @@ private struct ScanTaskCard: View {
     private var actions: some View {
         HStack(spacing: 6) {
             CardIconAction(
-                title: runner.isTracking ? "停止扫描" : "开始扫描",
+                title: runner.isTracking ? "停止监控" : "开始监控",
                 symbol: runner.isTracking ? "stop.fill" : "play.fill",
                 destination: .action {
                     if runner.isTracking { runner.stopTracking(preservingResults: true) }
@@ -314,9 +314,9 @@ private struct ScanTaskCard: View {
                 .help(regionLabel)
             Label(intervalLabel, systemImage: "clock")
                 .fixedSize()
-                .help("扫描间隔：\(intervalLabel)")
+                .help("查询间隔：\(intervalLabel)")
             if task.purchase?.enabled == true {
-                Label("购买辅助", systemImage: "bag").fixedSize()
+                Label("辅助购买", systemImage: "bag").fixedSize()
             }
             if !notificationChannels.isEmpty {
                 Label(notificationChannels, systemImage: "bell")

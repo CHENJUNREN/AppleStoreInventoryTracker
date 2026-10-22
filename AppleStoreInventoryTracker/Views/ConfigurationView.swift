@@ -6,8 +6,8 @@ enum ConfigurationCategory: String, CaseIterable {
     var title: String {
         switch self {
         case .general: "通用"
-        case .monitoring: "监控默认值"
-        case .purchase: "购买辅助"
+        case .monitoring: "监控设置"
+        case .purchase: "辅助购买"
         }
     }
 }
@@ -25,7 +25,7 @@ struct ConfigurationView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("配置类别", selection: $category) {
+            Picker("设置类别", selection: $category) {
                 ForEach(ConfigurationCategory.allCases, id: \.self) { item in
                     Text(item.title).tag(item)
                 }
@@ -79,10 +79,10 @@ struct ConfigurationView: View {
         Section("查询范围") {
             RegionFields(region: $draft.region)
         }
-        Section("扫描频率") {
+        Section("查询频率") {
             HStack {
-                TextField("扫描间隔（秒）", value: $draft.interval, format: .number)
-                Button("扫描频率说明", systemImage: "info.circle") { showScanHelp.toggle() }
+                TextField("查询间隔（秒）", value: $draft.interval, format: .number)
+                Button("查询频率说明", systemImage: "info.circle") { showScanHelp.toggle() }
                     .labelStyle(.iconOnly).buttonStyle(.plain).foregroundStyle(.secondary)
                     .popover(isPresented: $showScanHelp) {
                         Text("有货时自动加速查询，随后进入观察期。更短的自定义间隔优先；服务端冷却期间暂停查询。")
@@ -119,14 +119,14 @@ struct ConfigurationView: View {
                 }
             }
         } header: { Text("库存通知") }
-        footer: { Text("以上设置用于新建任务，可在添加产品时单独调整。") }
+        footer: { Text("以上设置用于新建监控任务，可在添加产品时单独调整。") }
     }
 
     @ViewBuilder private var purchaseSettings: some View {
         Section {
             PickupProfileFields(profile: $pickup)
         } header: { Text("取货人") }
-        footer: { Text("所有购买辅助任务共用，资料仅保存在本机。") }
+        footer: { Text("所有任务共用，仅保存在本机。") }
         Section("结账") {
             Picker("付款方式", selection: $pickup.payment) {
                 ForEach(PickupProfile.Payment.allCases, id: \.self) { payment in
@@ -147,12 +147,12 @@ struct ConfigurationView: View {
                 }
             }
         } header: { Text("浏览器") }
-        footer: { Text("使用独立的 Chrome 窗口。登录失效时，在浏览器中重新登录。") }
+        footer: { Text("使用独立登录状态，失效后需重新登录。") }
     }
 
     private func save() {
         if category == .monitoring {
-            guard draft.isValid else { store.toast.show("请填写完整查询范围，并输入有效的扫描间隔", kind: .error); return }
+            guard draft.isValid else { store.toast.show("请填写完整查询范围，并输入有效的查询间隔", kind: .error); return }
             guard !draft.barkNotification || InventoryNotifier.barkURL(base: draft.barkURL, title: "test", body: "test") != nil else {
                 store.toast.show("请填写有效的 Bark 地址", kind: .error); return
             }
@@ -164,7 +164,7 @@ struct ConfigurationView: View {
             }
         }
         guard store.storageError == nil else { return }
-        store.toast.show("配置已保存")
+        store.toast.show("设置已保存")
     }
 
     private func refreshPermission() async {
@@ -178,7 +178,7 @@ struct ConfigurationView: View {
     }
 
     private func testBark() async {
-        guard let url = InventoryNotifier.barkURL(base: draft.barkURL, title: "库存监测 · 测试通知", body: "Bark 推送配置成功") else {
+        guard let url = InventoryNotifier.barkURL(base: draft.barkURL, title: "库存监控 · 测试通知", body: "Bark 推送设置成功") else {
             store.toast.show("请填写有效的 Bark 地址", kind: .error); return
         }
         testing = true

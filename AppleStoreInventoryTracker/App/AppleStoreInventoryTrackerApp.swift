@@ -29,7 +29,7 @@ struct AppleStoreInventoryTrackerApp: App {
     @AppStorage(AppAppearance.storageKey) private var appearance = AppAppearance.system
 
     var body: some Scene {
-        Window("Apple 库存监测", id: "main") {
+        Window("Apple 库存监控", id: "main") {
             ContentView(store: store)
                 .onChange(of: appearance, initial: true) { _, value in
                     NSApp.appearance = value.appearance
@@ -42,7 +42,7 @@ struct AppleStoreInventoryTrackerApp: App {
         .defaultSize(width: 960, height: 680)
         .commands {
             CommandGroup(replacing: .appTermination) {
-                Button("退出 Apple 库存监测") { NSApplication.shared.terminate(nil) }.keyboardShortcut("q")
+                Button("退出 Apple 库存监控") { NSApplication.shared.terminate(nil) }.keyboardShortcut("q")
             }
         }
     }
@@ -61,8 +61,8 @@ final class DesktopAppDelegate: NSObject, NSApplicationDelegate {
             image.size = NSSize(width: 18, height: 18)
             image.isTemplate = true
             item.button?.image = image
-        } else { item.button?.image = NSImage(systemSymbolName: "shippingbox", accessibilityDescription: "库存监测") }
-        item.button?.toolTip = "显示或隐藏 Apple 库存监测"
+        } else { item.button?.image = NSImage(systemSymbolName: "shippingbox", accessibilityDescription: "库存监控") }
+        item.button?.toolTip = "显示或隐藏 Apple 库存监控"
         item.button?.target = self
         item.button?.action = #selector(toggleWindow)
         statusItem = item

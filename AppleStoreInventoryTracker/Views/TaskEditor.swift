@@ -35,15 +35,15 @@ struct TaskEditor: View {
                         ))
                     } header: { Text("监控设置") } footer: {
                         if !draft.customizationEnabled {
-                            Text("使用「配置 → 监控默认值」，保存后独立使用。")
+                            Text("使用「设置 → 监控设置」，保存后独立使用。")
                         }
                     }
                     if draft.customizationEnabled {
                         Section("查询范围") {
                             RegionFields(region: $draft.settings.region)
                         }
-                        Section("扫描频率") {
-                            TextField("扫描间隔（秒）", value: $draft.settings.interval, format: .number)
+                        Section("查询频率") {
+                            TextField("查询间隔（秒）", value: $draft.settings.interval, format: .number)
                         }
                         Section("库存通知") {
                             Toggle("系统通知", isOn: $draft.settings.appNotification)
@@ -55,7 +55,7 @@ struct TaskEditor: View {
                     }
                 }.formStyle(.grouped)
                 HStack(spacing: 12) {
-                    Toggle("保存后开始", isOn: $startAfterSaving).toggleStyle(.checkbox).fixedSize()
+                    Toggle("保存后开始监控", isOn: $startAfterSaving).toggleStyle(.checkbox).fixedSize()
                     Spacer()
                     Button("保存") { save(start: startAfterSaving) }
                         .modifier(SheetPillStyle(prominent: true))

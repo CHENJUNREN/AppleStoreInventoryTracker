@@ -55,7 +55,7 @@ final class PurchaseAssistant {
 
     private func failure(_ text: String, taskID: UUID) {
         attempted.insert(taskID)
-        messages[taskID] = "购买辅助已暂停"
+        messages[taskID] = "辅助购买已暂停"
         onFeedback?(text, true)
     }
 
@@ -78,11 +78,11 @@ final class PurchaseAssistant {
             child.terminationHandler = { [weak self] child in
                 Task { @MainActor [weak self] in
                     self?.preparing = false
-                    self?.feedback(child.terminationStatus == 0 ? "购买辅助已就绪。" : "准备失败，请检查网络后重试。", error: child.terminationStatus != 0)
+                    self?.feedback(child.terminationStatus == 0 ? "辅助购买已就绪。" : "准备失败，请检查网络后重试。", error: child.terminationStatus != 0)
                 }
             }
             try child.run()
-        } catch { preparing = false; feedback("无法准备购买辅助。") }
+        } catch { preparing = false; feedback("无法准备辅助购买。") }
     }
 
     func shutdown() { process?.terminate(); process = nil }
@@ -96,7 +96,7 @@ final class PurchaseAssistant {
         guard let settings = task.purchase, settings.enabled, activeTask == nil,
               !attempted.contains(task.id), let inventory = result.inventories.first(where: { $0.id == task.normalizedProduct }),
               !settings.availableStores(in: inventory).isEmpty else { return }
-        guard profile.validationError == nil else { failure("请先在配置页填写取货资料。", taskID: task.id); return }
+        guard profile.validationError == nil else { failure("请先在「设置 → 辅助购买」填写取货资料。", taskID: task.id); return }
         attempted.insert(task.id)
         activeTask = task.id
         messages[task.id] = "正在打开购买页面…"
@@ -125,8 +125,8 @@ final class PurchaseAssistant {
 
     private func launch(payload: [String: Any], taskID: UUID?) {
         guard ready, let node, let script = Bundle.main.url(forResource: "PurchaseAssistant", withExtension: nil)?.appendingPathComponent("checkout.cjs") else {
-            if let taskID { failure("请先在配置页准备购买辅助。", taskID: taskID); activeTask = nil }
-            else { feedback("请先准备购买辅助。") }
+            if let taskID { failure("请先在「设置 → 辅助购买」完成浏览器设置。", taskID: taskID); activeTask = nil }
+            else { feedback("请先准备辅助购买。") }
             return
         }
         do {
@@ -147,7 +147,7 @@ final class PurchaseAssistant {
                         if child.terminationStatus == 0 {
                             self.messages[taskID] = Self.message(for: 0)
                         } else { self.failure(Self.message(for: child.terminationStatus), taskID: taskID) }
-                    } else { self.feedback(child.terminationStatus == 0 ? "请在 Chrome 中完成登录；结账时会再次检查。" : Self.message(for: child.terminationStatus), error: child.terminationStatus != 0) }
+                    } else { self.feedback(child.terminationStatus == 0 ? "请在 Chrome 中登录。" : Self.message(for: child.terminationStatus), error: child.terminationStatus != 0) }
                 }
             }
             try child.run()
@@ -155,7 +155,7 @@ final class PurchaseAssistant {
             try input.fileHandleForWriting.write(contentsOf: JSONSerialization.data(withJSONObject: request))
             try input.fileHandleForWriting.close()
         } catch {
-            if let taskID { failure("无法启动购买辅助，请重试。", taskID: taskID); activeTask = nil }
+            if let taskID { failure("无法启动辅助购买，请重试。", taskID: taskID); activeTask = nil }
             else { feedback("无法打开登录窗口。") }
         }
     }
@@ -167,7 +167,7 @@ final class PurchaseAssistant {
         case 11: "购物袋已有商品，请在 Chrome 中处理后重试。"
         case 12: "所选门店暂无可用取货时段，请稍后重试。"
         case 13: "AppleCare+ 选项不可用，请检查购买设置。"
-        default: "购买辅助已暂停，请检查 Chrome 页面后重试。"
+        default: "辅助购买已暂停，请检查 Chrome 页面后重试。"
         }
     }
 }

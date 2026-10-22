@@ -19,7 +19,7 @@ final class MonitoringActivity: MonitoringActivityManaging {
         guard token == nil else { return }
         token = ProcessInfo.processInfo.beginActivity(
             options: [.userInitiated, .idleSystemSleepDisabled],
-            reason: "正在监测 Apple Store 到店取货库存"
+            reason: "正在监控 Apple Store 到店取货库存"
         )
     }
 

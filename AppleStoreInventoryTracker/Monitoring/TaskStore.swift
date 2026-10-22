@@ -84,7 +84,7 @@ final class TaskStore {
     func validationError(for task: ScanTask) -> String? {
         guard !task.normalizedProduct.isEmpty else { return "请输入产品型号。" }
         let effective = task.resolved(using: defaults)
-        guard effective.isValid else { return "请填写完整地区，并输入有效的扫描间隔。" }
+        guard effective.isValid else { return "请填写完整地区，并输入有效的查询间隔。" }
         guard !effective.barkNotification || InventoryNotifier.barkURL(base: effective.barkURL, title: "test", body: "test") != nil else { return "请填写有效的 Bark 地址，或关闭 Bark 推送。" }
         return nil
     }

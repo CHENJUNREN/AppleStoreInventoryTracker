@@ -6,7 +6,7 @@ enum QuitConfirmation {
     static func confirm(isTracking: Bool) -> Bool {
         let alert = NSAlert()
         alert.messageText = "确定退出应用？"
-        alert.informativeText = isTracking ? "退出后将停止库存监测和通知。" : "退出后将关闭菜单栏应用。"
+        alert.informativeText = isTracking ? "退出后将停止库存监控和通知。" : "退出后将关闭应用。"
         alert.alertStyle = .warning
         let cancel = alert.addButton(withTitle: "取消")
         cancel.keyEquivalent = "\r"

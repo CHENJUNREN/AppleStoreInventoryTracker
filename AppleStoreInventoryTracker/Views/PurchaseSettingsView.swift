@@ -30,21 +30,21 @@ struct PurchaseSettingsView: View {
     private var configured: Bool { store.purchaseAssistant.profile.validationError == nil && store.purchaseAssistant.ready }
 
     var body: some View {
-        SheetLayout(title: "购买辅助") {
+        SheetLayout(title: "辅助购买") {
             VStack(spacing: 0) {
                 Form {
                     if !configured {
                         Section {
                             HStack {
-                                Text("请先完成购买辅助的共用设置。")
+                                Text("请先完善取货资料和浏览器设置。")
                                 Spacer()
-                                Button("前往购买辅助…") { dismiss(); openConfiguration() }
+                                Button("前往设置…") { dismiss(); openConfiguration() }
                             }
                         }
                     }
                     Section {
                         if draft.stores.isEmpty {
-                            Text(shops.isEmpty ? "扫描后可选择门店" : "尚未选择门店").foregroundStyle(.secondary)
+                            Text(shops.isEmpty ? "查询后可选择门店" : "尚未选择门店").foregroundStyle(.secondary)
                         }
                         ForEach(draft.stores) { shop in
                             HStack(spacing: 10) {
@@ -86,22 +86,22 @@ struct PurchaseSettingsView: View {
                             .fixedSize()
                         }
                     } header: { Text("取货门店") }
-                    footer: { Text("按列表顺序尝试，默认选择首个可用取货时段。") }
+                    footer: { Text("按顺序尝试，选择首个可用取货时段。") }
                     Section {
                         Toggle("加购 AppleCare+", isOn: $draft.appleCare)
                     } header: { Text("购买选项") } footer: {
-                        Text("购买 1 件，不折抵换购，使用个人发票。")
+                        Text("购买 1 件，不折抵，开具个人发票。")
                     }
                 }.formStyle(.grouped)
                 HStack {
-                    Text("检查订单后，由你确认付款。")
+                    Text("自动填写至检查订单页，下单付款由你完成。")
                         .font(.caption).foregroundStyle(.secondary)
                     Spacer()
                     Button("保存") {
                         draft.enabled = true
                         store.setPurchase(draft, for: task.id)
                         guard store.storageError == nil else { return }
-                        store.toast.show("购买辅助设置已保存")
+                        store.toast.show("辅助购买设置已保存")
                         dismiss()
                     }
                     .modifier(SheetPillStyle(prominent: true))
