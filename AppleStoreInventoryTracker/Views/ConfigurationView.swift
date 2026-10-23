@@ -21,6 +21,7 @@ struct ConfigurationView: View {
     @State private var notificationStatus = "读取中…"
     @State private var testing = false
     @State private var showScanHelp = false
+    @State private var showingRelogin = false
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -62,9 +63,15 @@ struct ConfigurationView: View {
                 }
             }
         }
-        .onAppear { draft = store.defaults; pickup = store.purchaseAssistant.profile }
+        .alert("重新登录 Apple 账户？", isPresented: $showingRelogin) {
+            Button("取消", role: .cancel) {}
+            Button("重新登录") { store.purchaseAssistant.openLogin() }
+        } message: {
+            Text("将关闭此应用的 Chrome 窗口，清除其中的 Apple 登录数据后重新打开。日常浏览器和取货资料不受影响。")
+        }
+        .onAppear { draft = store.defaults; pickup = store.purchaseAssistant.profile; store.purchaseAssistant.refreshLoginState() }
         .task { await refreshPermission() }
-        .onChange(of: scenePhase) { _, value in if value == .active { Task { await refreshPermission() } } }
+        .onChange(of: scenePhase) { _, value in if value == .active { store.purchaseAssistant.refreshLoginState(); Task { await refreshPermission() } } }
     }
 
     private var hasChanges: Bool {
@@ -136,18 +143,41 @@ struct ConfigurationView: View {
         }
         Section {
             HStack {
-                Text("Chrome")
+                Text(loginStatus).foregroundStyle(.secondary)
                 Spacer()
-                if store.purchaseAssistant.ready {
-                    Button("登录 Apple 账户…") { store.purchaseAssistant.openLogin() }
-                        .disabled(store.purchaseAssistant.activeTask != nil)
-                } else {
-                    Button(store.purchaseAssistant.preparing ? "正在设置…" : "设置浏览器…") { store.purchaseAssistant.prepare() }
-                        .disabled(store.purchaseAssistant.preparing)
+                Button(loginActionTitle) {
+                    if store.purchaseAssistant.awaitingLoginCompletion { store.purchaseAssistant.finishLogin() }
+                    else if store.purchaseAssistant.loginVerified { showingRelogin = true }
+                    else { store.purchaseAssistant.openLogin() }
+                }
+                .disabled(loginBusy || store.purchaseAssistant.activeTask != nil)
+                if store.purchaseAssistant.awaitingLoginCompletion {
+                    Menu("登录选项", systemImage: "ellipsis") {
+                        Button("重新登录…") { showingRelogin = true }
+                    }
+                    .labelStyle(.iconOnly).menuStyle(.borderlessButton).fixedSize()
+                    .help("登录遇到问题？")
+                    .disabled(loginBusy || store.purchaseAssistant.activeTask != nil)
                 }
             }
-        } header: { Text("浏览器") }
-        footer: { Text("使用独立登录状态，失效后需重新登录。") }
+        } header: { Text("Apple 账户") }
+        footer: {
+            if store.purchaseAssistant.awaitingLoginCompletion {
+                Text("在 Chrome 中登录后返回。点击「我已登录」将重开专用窗口并确认登录状态。")
+            }
+        }
+    }
+
+    private var loginBusy: Bool { store.purchaseAssistant.openingLogin || store.purchaseAssistant.preparing }
+    private var loginStatus: String {
+        if store.purchaseAssistant.verifyingLogin { return "正在确认登录…" }
+        if loginBusy { return "正在打开登录窗口…" }
+        if store.purchaseAssistant.awaitingLoginCompletion { return "等待登录" }
+        return store.purchaseAssistant.loginVerified ? "登录已保存" : "尚未登录"
+    }
+    private var loginActionTitle: String {
+        if store.purchaseAssistant.awaitingLoginCompletion { return "我已登录" }
+        return store.purchaseAssistant.loginVerified ? "重新登录…" : "登录"
     }
 
     private func save() {

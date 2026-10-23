@@ -90,7 +90,7 @@ struct PurchaseSettingsView: View {
                     Section {
                         Toggle("加购 AppleCare+", isOn: $draft.appleCare)
                     } header: { Text("购买选项") } footer: {
-                        Text("购买 1 件，不折抵，开具个人发票。")
+                        Text("将清空购物袋并加入本产品 1 件，不折抵，开具个人发票。")
                     }
                 }.formStyle(.grouped)
                 HStack {

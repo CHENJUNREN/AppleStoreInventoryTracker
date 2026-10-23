@@ -118,9 +118,17 @@ final class TaskStore {
                              pushNotificationSettings: (settings.appNotification, settings.barkNotification, settings.barkURL))
     }
 
+    func canEnablePurchase(_ settings: TaskPurchaseSettings?) -> Bool {
+        guard let settings else { return false }
+        return !settings.stores.isEmpty && purchaseAssistant.profile.validationError == nil && purchaseAssistant.ready
+    }
+
     func setPurchase(_ settings: TaskPurchaseSettings, for id: UUID) {
         guard storageError == nil, let index = tasks.firstIndex(where: { $0.id == id }) else { return }
-        guard !settings.enabled || (!settings.stores.isEmpty && purchaseAssistant.profile.validationError == nil && purchaseAssistant.ready) else { return }
+        guard !settings.enabled || canEnablePurchase(settings) else { return }
+        if settings.enabled && tasks[index].purchase?.enabled != true {
+            purchaseAssistant.reset(id)
+        }
         tasks[index].purchase = settings
         if !settings.enabled { purchaseAssistant.disable(id) }
         persist()

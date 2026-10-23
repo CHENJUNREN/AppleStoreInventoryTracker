@@ -156,9 +156,17 @@ struct RegressionTests {
 
     @MainActor
     static func main() async throws {
+        expect(PurchaseAssistant.retryDelay(for: 21, attempt: 0) == 10, "first transient retry backs off")
+        expect(PurchaseAssistant.retryDelay(for: 21, attempt: 50) == 60, "retry delay is capped")
+        expect(PurchaseAssistant.retryDelay(for: 12, attempt: 0) == 60, "unavailable pickup waits")
+        for code: Int32 in [0, 10, 11, 13, 20, 24, 25, 26, 27, 31, 32] {
+            expect(PurchaseAssistant.retryDelay(for: code, attempt: 0) == nil, "manual intervention and review never auto-retry")
+        }
+
         try await toastLifecycle()
         await restartPresentation()
         try purchaseConfiguration()
+        try browserProfileRecovery()
         desktopPersistence()
         independentConfigurationSnapshots()
         try customizationEditorState()
@@ -239,6 +247,37 @@ struct RegressionTests {
         expect(!assistant.saveProfile(masked), "masked website values cannot replace real profile")
         expect(PurchaseAssistant(directory: directory).profile == profile, "failed save preserves previous profile")
         pass("purchase priority, removal, legacy defaults, independent profile persistence and masking validation")
+    }
+
+    @MainActor
+    private static func browserProfileRecovery() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let assistant = PurchaseAssistant(directory: directory)
+        let profile = PickupProfile(lastName: "测试", firstName: "用户", emailAddress: "test@example.com", fullDaytimePhone: "13800000000", nationalIdSelf: "123X", payment: .alipay)
+        expect(assistant.saveProfile(profile), "pickup profile saves independently of login")
+        expect(!assistant.awaitingLoginCompletion && !assistant.loginVerified, "new installation starts signed out")
+        let marker = directory.appendingPathComponent("manual-login.json")
+        let verified = directory.appendingPathComponent("verified-login.json")
+        try JSONEncoder().encode("chrome-profile").write(to: marker)
+        assistant.refreshLoginState()
+        expect(assistant.awaitingLoginCompletion && !assistant.loginVerified, "ordinary login presents one completion action")
+        expect(PurchaseAssistant(directory: directory).awaitingLoginCompletion, "pending login survives relaunch")
+        try JSONEncoder().encode("chrome-profile").write(to: verified)
+        expect(!PurchaseAssistant(directory: directory).loginVerified, "pending login takes precedence over an old verification")
+        try FileManager.default.removeItem(at: marker)
+        assistant.refreshLoginState()
+        expect(assistant.loginVerified && !assistant.awaitingLoginCompletion, "verified session presents relogin")
+        expect(PurchaseAssistant(directory: directory).loginVerified, "verified status survives relaunch")
+        try FileManager.default.removeItem(at: verified)
+        assistant.refreshLoginState()
+        expect(!assistant.loginVerified, "expired verification returns to login")
+        try JSONEncoder().encode("chrome-profile-other").write(to: verified)
+        assistant.refreshLoginState()
+        expect(!assistant.loginVerified, "verification from another profile is not reused")
+        expect(PurchaseAssistant(directory: directory).profile == profile, "login state changes preserve pickup and payment details")
+        expect(!FileManager.default.fileExists(atPath: directory.appendingPathComponent("browser-profile.json").path), "login states never rotate the dedicated browser profile")
+        pass("dedicated browser login states, relaunch persistence and pickup preservation")
     }
 
     private static func catalogFixture(_ name: String) throws -> String {

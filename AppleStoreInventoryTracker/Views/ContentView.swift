@@ -164,16 +164,17 @@ private struct ScanTaskCard: View {
                 Toggle("有货时辅助购买", isOn: Binding(
                 get: { task.purchase?.enabled == true },
                 set: { enabled in
-                    if enabled { showingPurchaseSettings = true }
-                    else {
+                    if enabled && !store.canEnablePurchase(task.purchase) {
+                        showingPurchaseSettings = true
+                    } else {
                         var settings = task.purchase ?? TaskPurchaseSettings()
-                        settings.enabled = false
+                        settings.enabled = enabled
                         store.setPurchase(settings, for: task.id)
                     }
                 }
                 )).toggleStyle(.switch).labelsHidden()
             }
-            if let settings = task.purchase, settings.enabled {
+            if let settings = task.purchase {
                 HStack {
                     Text(purchaseSummary(settings)).foregroundStyle(.secondary).lineLimit(2)
                     Spacer()
@@ -186,6 +187,10 @@ private struct ScanTaskCard: View {
                 HStack(alignment: .top) {
                     Text(message).foregroundStyle(.secondary)
                     Spacer()
+                    if store.purchaseAssistant.canResume(task.id) {
+                        Button("继续辅助购买") { store.purchaseAssistant.resume(task.id) }
+                            .buttonStyle(.borderless)
+                    }
                     Button("结束本次辅助") {
                         var settings = task.purchase ?? TaskPurchaseSettings()
                         settings.enabled = false
