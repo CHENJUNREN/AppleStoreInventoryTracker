@@ -12,6 +12,7 @@ protocol InventoryNotifying {
 
 @MainActor
 final class InventoryNotifier: InventoryNotifying {
+    var onActivity: ((String, TaskActivity.Kind) -> Void)?
     private var pendingNotifications: [String: Date] = [:]
     private var notificationPolicy = InventoryNotificationPolicy()
     private let session: URLSession
@@ -60,8 +61,8 @@ final class InventoryNotifier: InventoryNotifying {
                     pendingNotifications[id] = Date().addingTimeInterval(2)
                     let request = UNNotificationRequest(identifier: id, content: content,
                         trigger: UNTimeIntervalNotificationTrigger(timeInterval: 0.3, repeats: false))
-                    do { try await center.add(request) }
-                    catch { print("[Inventory] App 通知发送失败") }
+                    do { try await center.add(request); if !Task.isCancelled { onActivity?("系统通知已发送", .information) } }
+                    catch { onActivity?("系统通知发送失败", .error) }
                     if Task.isCancelled {
                         center.removePendingNotificationRequests(withIdentifiers: [id])
                         pendingNotifications.removeValue(forKey: id)
@@ -79,10 +80,12 @@ final class InventoryNotifier: InventoryNotifying {
                     let (_, response) = try await session.data(from: url)
                     guard !Task.isCancelled else { return }
                     if let response = response as? HTTPURLResponse, !(200...299).contains(response.statusCode) {
-                        print("[Inventory] Bark 请求失败（HTTP \(response.statusCode)）")
+                        onActivity?("Bark 通知发送失败", .error)
+                    } else if response is HTTPURLResponse {
+                        onActivity?("Bark 通知已发送", .information)
                     }
                 } catch {
-                    if !Task.isCancelled { print("[Inventory] Bark 请求失败") }
+                    if !Task.isCancelled { onActivity?("Bark 通知发送失败", .error) }
                 }
             }
         }

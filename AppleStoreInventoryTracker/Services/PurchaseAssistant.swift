@@ -6,7 +6,22 @@ import Observation
 final class PurchaseAssistant {
     private(set) var profile = PickupProfile()
     private(set) var profileError: String?
-    private(set) var messages: [UUID: String] = [:]
+    private(set) var messages: [UUID: String] = [:] {
+        didSet {
+            for (id, message) in messages where oldValue[id] != message {
+                onActivity?(id, message, message.contains("重试") || message.contains("暂停") || message.contains("登录") ? .warning : .information)
+            }
+        }
+    }
+    enum TaskState: String {
+        case running = "正在处理"
+        case retrying = "等待重试"
+        case login = "需要登录"
+        case review = "待确认订单"
+        case paused = "已暂停"
+        var needsAttention: Bool { self == .login || self == .review || self == .paused }
+    }
+    private(set) var states: [UUID: TaskState] = [:]
     private(set) var activeTask: UUID?
     private(set) var preparing = false
     private(set) var openingLogin = false
@@ -14,6 +29,7 @@ final class PurchaseAssistant {
     private(set) var loginVerified = false
     private(set) var verifyingLogin = false
     private(set) var environmentMessage: String?
+    @ObservationIgnored var onActivity: ((UUID, String, TaskActivity.Kind) -> Void)?
     @ObservationIgnored var onFeedback: ((String, Bool) -> Void)?
     @ObservationIgnored private var process: Process?
     @ObservationIgnored private var pendingResumes: [UUID: [String: Any]] = [:]
@@ -72,8 +88,8 @@ final class PurchaseAssistant {
 
     private func failure(_ text: String, taskID: UUID) {
         attempted.insert(taskID)
+        states[taskID] = .paused
         messages[taskID] = text
-        onFeedback?(text, true)
     }
 
     func prepare() {
@@ -125,6 +141,7 @@ final class PurchaseAssistant {
         attempted.insert(task.id)
         activeTask = task.id
         retryCount = 0
+        states[task.id] = .running
         messages[task.id] = "正在打开购买页面…"
         launch(payload: ["mode": "purchase", "product": task.normalizedProduct, "expectedName": inventory.stores.first?.productName ?? "",
                          "region": ["province": task.region?.province ?? "", "city": task.region?.city ?? "", "district": task.region?.district ?? ""], "appleCare": settings.appleCare,
@@ -136,6 +153,7 @@ final class PurchaseAssistant {
     func resume(_ id: UUID) {
         guard canResume(id), let payload = pendingResumes.removeValue(forKey: id) else { return }
         activeTask = id
+        states[id] = .running
         messages[id] = "正在继续辅助购买…"
         launch(payload: payload, taskID: id)
     }
@@ -151,14 +169,14 @@ final class PurchaseAssistant {
         }
         pendingResumes.removeValue(forKey: id)
         attempted.remove(id)
-        messages.removeValue(forKey: id)
+        messages.removeValue(forKey: id); states.removeValue(forKey: id)
     }
 
     func disable(_ id: UUID) {
         pendingResumes.removeValue(forKey: id)
         // Keep the browser lock when a checkout is open, until the user explicitly releases it.
-        if activeTask == id { retryTask?.cancel(); retryTask = nil; process?.terminate(); process = nil; messages[id] = "已暂停，请在浏览器处理当前购物袋。" }
-        else { attempted.remove(id); messages.removeValue(forKey: id) }
+        if activeTask == id { retryTask?.cancel(); retryTask = nil; process?.terminate(); process = nil; states[id] = .paused; messages[id] = "已暂停，请在浏览器处理当前购物袋。" }
+        else { attempted.remove(id); messages.removeValue(forKey: id); states.removeValue(forKey: id) }
     }
 
     private func launch(payload: [String: Any], taskID: UUID?) {
@@ -179,23 +197,49 @@ final class PurchaseAssistant {
             child.standardInput = input
             child.standardOutput = FileHandle.nullDevice
             child.standardError = FileHandle.nullDevice
+            var activityEventsSeen = 0
+            let readActivity: @MainActor () -> Void = { [weak self] in
+                guard let self, let taskID,
+                      let data = try? Data(contentsOf: diagnosticURL),
+                      let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let events = object["events"] as? [[String: Any]] else { return }
+                for event in events.dropFirst(activityEventsSeen) {
+                    if event["category"] as? String == "running", let stage = event["stage"] as? String,
+                       ["选择产品规格", "整理购物袋", "加入购物袋", "进入结账", "选择取货地区", "选择门店与取货时段", "填写取货资料", "选择付款方式", "核对订单"].contains(stage) {
+                        self.onActivity?(taskID, stage + "…", .information)
+                    }
+                }
+                activityEventsSeen = events.count
+            }
+            if taskID != nil {
+                Task { @MainActor [weak self, weak child] in
+                    while let self, let child, self.process === child {
+                        readActivity()
+                        try? await Task.sleep(for: .milliseconds(500))
+                    }
+                }
+            }
             child.terminationHandler = { [weak self] child in
                 Task { @MainActor [weak self] in
                     guard let self else { return }
                     if let taskID {
                         guard self.activeTask == taskID, self.process === child else { return }
+                        readActivity()
                         self.process = nil
                         self.refreshLoginState()
                         if child.terminationStatus == 0 {
+                            self.states[taskID] = .review
                             self.messages[taskID] = Self.message(for: 0)
                         } else if let delay = Self.retryDelay(for: child.terminationStatus, attempt: self.retryCount) {
                             self.retryCount = min(self.retryCount + 1, 4)
+                            self.states[taskID] = .retrying
                             let reason = child.terminationStatus == 12 ? "暂无可用取货时段" : "连接暂时中断"
                             self.messages[taskID] = "\(reason)，\(delay) 秒后自动重试。"
                             self.retryTask = Task { @MainActor [weak self] in
                                 do { try await Task.sleep(for: .seconds(delay)) } catch { return }
                                 guard let self, !Task.isCancelled, self.activeTask == taskID else { return }
                                 self.retryTask = nil
+                                self.states[taskID] = .running
                                 self.messages[taskID] = "正在重试辅助购买…"
                                 self.launch(payload: payload, taskID: taskID)
                             }
@@ -203,6 +247,7 @@ final class PurchaseAssistant {
                             self.failure(Self.failureMessage(for: child.terminationStatus, diagnosticURL: diagnosticURL), taskID: taskID)
                             // Allow login recovery, while keeping this task disarmed until explicitly restarted.
                             if [10, 25, 26].contains(child.terminationStatus) {
+                                self.states[taskID] = .login
                                 if child.terminationStatus == 10 {
                                     var resumePayload = payload
                                     resumePayload["mode"] = "resume-purchase"

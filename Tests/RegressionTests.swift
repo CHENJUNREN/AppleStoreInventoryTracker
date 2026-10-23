@@ -156,6 +156,34 @@ struct RegressionTests {
 
     @MainActor
     static func main() async throws {
+        var history = TaskActivityHistory()
+        history.record("查询完成 · 暂无现货", key: "inventory")
+        let observationID = history.entries[0].id
+        history.record("查询完成 · 暂无现货", key: "inventory")
+        expect(history.entries.count == 1 && history.entries[0].id == observationID, "unchanged observations coalesce")
+        history.record("有货", kind: .stock)
+        history.record("查询完成 · 暂无现货", key: "inventory")
+        expect(history.entries.count == 3, "stock transitions retain chronological history")
+        for i in 0..<210 { history.record("event \(i)") }
+        expect(history.entries.count == 200 && history.entries.last?.message == "event 209", "history retains latest 200")
+        let restoredHistory = try JSONDecoder().decode(TaskActivityHistory.self, from: JSONEncoder().encode(history))
+        expect(restoredHistory.entries == history.entries, "history persists identity, timestamps and kinds")
+        pass("activity history coalescing, ordering, retention and persistence")
+        let feedbackDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let feedbackAssistant = PurchaseAssistant(directory: feedbackDirectory)
+        var taskFeedbackCount = 0
+        var taskActivities: [String] = []
+        feedbackAssistant.onFeedback = { _, _ in taskFeedbackCount += 1 }
+        feedbackAssistant.onActivity = { _, text, _ in taskActivities.append(text) }
+        let feedbackTask = ScanTask(product: "A", purchase: TaskPurchaseSettings(enabled: true,
+            stores: [PreferredStore(id: "R001", name: "测试门店")]))
+        feedbackAssistant.consider(task: feedbackTask, result: CachedScanResult(
+            inventories: batch(["A"]).inventories, location: "上海", updatedAt: Date()))
+        expect(taskFeedbackCount == 0 && taskActivities.count == 1, "task failure only enters activity history, without toast")
+        expect(feedbackAssistant.states[feedbackTask.id] == .paused, "task failure remains visible as a concise state")
+        feedbackAssistant.reset(feedbackTask.id)
+        expect(feedbackAssistant.states[feedbackTask.id] == nil, "reset removes stale action state")
+        pass("task errors use activity history without duplicate toast")
         expect(PurchaseAssistant.retryDelay(for: 21, attempt: 0) == 10, "first transient retry backs off")
         expect(PurchaseAssistant.retryDelay(for: 21, attempt: 50) == 60, "retry delay is capped")
         expect(PurchaseAssistant.retryDelay(for: 12, attempt: 0) == 60, "unavailable pickup waits")

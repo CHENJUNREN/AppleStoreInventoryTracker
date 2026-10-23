@@ -35,6 +35,7 @@ final class ContentViewModel {
     private(set) var lastError: String? {
         didSet { if let lastError, lastError != oldValue { onError?(lastError) } }
     }
+    @ObservationIgnored var onActivity: ((String, TaskActivity.Kind) -> Void)?
     @ObservationIgnored var onError: ((String) -> Void)?
     private(set) var lastSuccessAt: Date?
     @ObservationIgnored var onResult: ((CachedScanResult) -> Void)?
@@ -55,6 +56,9 @@ final class ContentViewModel {
         self.notifier = notifier ?? InventoryNotifier()
         self.clock = clock ?? SystemTrackingClock()
         self.activity = activity ?? MonitoringActivity()
+        if let notifier = self.notifier as? InventoryNotifier {
+            notifier.onActivity = { [weak self] message, kind in self?.onActivity?(message, kind) }
+        }
     }
 
     func restore(_ result: CachedScanResult) {
@@ -77,12 +81,14 @@ final class ContentViewModel {
         // Keep duration arithmetic and progress values representable even for pasted integers.
         guard !ids.isEmpty, !location.isEmpty, countdown > 0, countdown <= Int(Int32.max) else {
             lastError = InventoryError.invalidInput.localizedDescription
+            onActivity?(InventoryError.invalidInput.localizedDescription, .error)
             print("[Inventory] \(lastError!)")
             return
         }
         let id = UUID()
         runID = id
         activity.begin()
+        onActivity?("已开始监控，每 \(countdown) 秒查询", .information)
         isTracking = true
         hasStarted = true
         if resultLocation != location || Set(inventoryInfos.map(\.id)) != Set(ids) {
@@ -103,6 +109,7 @@ final class ContentViewModel {
     }
 
     func stopTracking(preservingResults: Bool = false) {
+        if isTracking { onActivity?("已停止监控", .information) }
         runID = nil
         isTracking = false
         isQuerying = false
@@ -199,6 +206,7 @@ final class ContentViewModel {
             let delay = errors.isEmpty ? pollingInterval
                 : InventoryRetryPolicy.delay(interval: interval, failures: failures, retryAfter: retryAfter)
             let deadline = errors.isEmpty ? max(started + Double(pollingInterval), clock.now) : clock.now + Double(delay)
+            if !errors.isEmpty { onActivity?("\(lastError ?? "查询暂时失败")，\(delay) 秒后重试", .warning) }
             countdown = delay
             hasCompletedRequest = true
             do {

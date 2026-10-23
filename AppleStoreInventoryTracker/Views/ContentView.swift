@@ -92,19 +92,13 @@ private struct ScanTaskCard: View {
     let start: () -> Void
     let delete: () -> Void
     @State private var expanded = false
+    @State private var showingStores = false
     @State private var hovering = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var effective: ScanDefaults { task.resolved(using: defaults) }
 
     private var regionLabel: String {
         effective.region.city
-    }
-
-    private var status: String {
-        guard runner.isTracking else { return runner.hasStarted ? "已停止" : "未开始" }
-        if runner.isQuerying { return "查询中" }
-        if runner.lastError != nil { return "重试 \(runner.countdownText)" }
-        return runner.countdownText
     }
 
     private var trackingColor: Color {
@@ -131,7 +125,21 @@ private struct ScanTaskCard: View {
                     Divider()
                     purchaseControls
                     Divider()
-                    details.textSelection(.enabled)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("活动记录").font(.subheadline.weight(.medium))
+                            Spacer()
+                            Button("查看门店") { showingStores = true }
+                                .buttonStyle(.bordered)
+                                .buttonBorderShape(.capsule)
+                                .controlSize(.small)
+                                .disabled(runner.inventoryInfos.isEmpty)
+                                .popover(isPresented: $showingStores) {
+                                    ScrollView { details.padding(16) }.frame(width: 320, height: 320)
+                                }
+                        }
+                        TaskActivityList(entries: store.histories[task.id.uuidString]?.entries ?? []).equatable()
+                    }
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 20)
@@ -159,8 +167,10 @@ private struct ScanTaskCard: View {
     private var purchaseControls: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("有货时辅助购买")
+                Text("有货时辅助购买").font(.subheadline.weight(.medium))
                 Spacer()
+                Button("设置…", systemImage: "slider.horizontal.3") { showingPurchaseSettings = true }
+                    .disabled(store.purchaseAssistant.activeTask == task.id)
                 Toggle("有货时辅助购买", isOn: Binding(
                 get: { task.purchase?.enabled == true },
                 set: { enabled in
@@ -175,33 +185,36 @@ private struct ScanTaskCard: View {
                 )).toggleStyle(.switch).labelsHidden()
             }
             if let settings = task.purchase {
-                HStack {
-                    Text(purchaseSummary(settings)).foregroundStyle(.secondary).lineLimit(2)
-                    Spacer()
-                    Button("设置…") { showingPurchaseSettings = true }
-                        .buttonStyle(.borderless)
-                        .disabled(store.purchaseAssistant.activeTask == task.id)
-                }.font(.caption)
+                Text(purchaseSummary(settings))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            if let message = store.purchaseAssistant.messages[task.id] {
-                HStack(alignment: .top) {
-                    Text(message).foregroundStyle(.secondary)
+            if let state = store.purchaseAssistant.states[task.id] {
+                HStack(spacing: 8) {
+                    Label(state.rawValue, systemImage: state.needsAttention ? "exclamationmark.circle" : "clock")
+                        .font(.caption)
+                        .foregroundStyle(state.needsAttention ? Color.orange : Color.secondary)
                     Spacer()
                     if store.purchaseAssistant.canResume(task.id) {
-                        Button("继续辅助购买") { store.purchaseAssistant.resume(task.id) }
-                            .buttonStyle(.borderless)
+                        Button("继续辅助购买", systemImage: "play") { store.purchaseAssistant.resume(task.id) }
+                            .help("在 Chrome 完成登录后继续")
+                    } else if state == .login {
+                        Button("前往设置") { openConfiguration() }
                     }
-                    Button("结束本次辅助") {
+                    Button("结束本次辅助", systemImage: "stop") {
                         var settings = task.purchase ?? TaskPurchaseSettings()
                         settings.enabled = false
                         store.setPurchase(settings, for: task.id)
                         store.purchaseAssistant.reset(task.id)
                     }
-                        .buttonStyle(.borderless)
-                        .help("关闭辅助购买并释放浏览器；再次开启后才会重新尝试。")
-                }.font(.caption)
+                    .help("关闭辅助购买并释放浏览器；再次开启后才会重新尝试。")
+                }
             }
         }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
+        .controlSize(.small)
     }
 
     private func purchaseSummary(_ settings: TaskPurchaseSettings) -> String {
@@ -224,27 +237,13 @@ private struct ScanTaskCard: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(expanded ? "收起详情" : "查看门店库存")
+        .help(expanded ? "收起详情" : "查看活动记录")
         .accessibilityValue(expanded ? "已展开" : "已收起")
         .onHover { hovering = $0 }
     }
 
-    private var isCountingDown: Bool {
-        runner.isTracking && !runner.isQuerying
-    }
-
     private var statusLabel: some View {
-        Text(status)
-            .font(.caption)
-            .monospacedDigit()
-            .contentTransition(reduceMotion ? .identity : (isCountingDown ? .numericText(countsDown: true) : .opacity))
-            // Scope animation to the label so each tick cannot animate the card or its actions.
-            .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: status)
-            .fixedSize(horizontal: true, vertical: false)
-            .frame(minWidth: 64, alignment: .trailing)
-            .foregroundStyle(runner.isTracking && runner.lastError != nil ? Color.orange : Color.secondary)
-            .help(runner.isTracking ? runner.countdownLabel : status)
-            .accessibilityLabel(isCountingDown ? "\(runner.countdownLabel)，\(status)" : status)
+        TaskCardStatusLabel(runner: runner, reduceMotion: reduceMotion)
     }
 
     private var actions: some View {
@@ -321,7 +320,11 @@ private struct ScanTaskCard: View {
                 .fixedSize()
                 .help("查询间隔：\(intervalLabel)")
             if task.purchase?.enabled == true {
-                Label("辅助购买", systemImage: "bag").fixedSize()
+                let state = store.purchaseAssistant.states[task.id]
+                Label(state?.needsAttention == true ? "辅助购买 · \(state!.rawValue)" : "辅助购买",
+                      systemImage: state?.needsAttention == true ? "exclamationmark.circle" : "bag")
+                    .foregroundStyle(state?.needsAttention == true ? Color.orange : Color.secondary)
+                    .fixedSize()
             }
             if !notificationChannels.isEmpty {
                 Label(notificationChannels, systemImage: "bell")
@@ -356,6 +359,32 @@ private struct ScanTaskCard: View {
                     .padding(.top, 8)
             }
         }.font(.caption)
+    }
+}
+
+private struct TaskCardStatusLabel: View {
+    let runner: ContentViewModel
+    let reduceMotion: Bool
+
+    private var isCountingDown: Bool { runner.isTracking && !runner.isQuerying }
+    private var status: String {
+        guard runner.isTracking else { return runner.hasStarted ? "已停止" : "未开始" }
+        if runner.isQuerying { return "查询中" }
+        if runner.lastError != nil { return "重试 \(runner.countdownText)" }
+        return runner.countdownText
+    }
+
+    var body: some View {
+        Text(status)
+            .font(.caption)
+            .monospacedDigit()
+            .contentTransition(reduceMotion ? .identity : (isCountingDown ? .numericText(countsDown: true) : .opacity))
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: status)
+            .fixedSize(horizontal: true, vertical: false)
+            .frame(minWidth: 64, alignment: .trailing)
+            .foregroundStyle(runner.isTracking && runner.lastError != nil ? Color.orange : Color.secondary)
+            .help(runner.isTracking ? runner.countdownLabel : status)
+            .accessibilityLabel(isCountingDown ? "\(runner.countdownLabel)，\(status)" : status)
     }
 }
 
@@ -405,5 +434,141 @@ private struct CardIconAction: View {
             .font(.system(size: 13, weight: .medium))
             .frame(width: 28, height: 28)
             .contentShape(Rectangle())
+    }
+}
+
+
+private struct ActivityBottomPreference: PreferenceKey {
+    static var defaultValue = true
+    static func reduce(value: inout Bool, nextValue: () -> Bool) { value = nextValue() }
+}
+
+private struct TaskActivityList: View, Equatable {
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.entries == rhs.entries }
+    let entries: [TaskActivity]
+    @State private var following = true
+    @State private var hasNewEntries = false
+    private let rowHeight: CGFloat = 28
+    private var height: CGFloat { CGFloat(min(max(entries.count, 1), 10)) * rowHeight }
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                Group {
+                    if #available(macOS 15.0, *) {
+                        LazyVStack(alignment: .leading, spacing: 0) { rows }
+                    } else {
+                        VStack(alignment: .leading, spacing: 0) { rows }
+                    }
+                }
+                .background {
+                    if #available(macOS 15.0, *) {
+                        EmptyView()
+                    } else {
+                        GeometryReader { geometry in
+                            Color.clear.preference(key: ActivityBottomPreference.self,
+                                value: geometry.frame(in: .named("activity")).maxY <= height + 2)
+                        }
+                    }
+                }
+            }
+
+            .coordinateSpace(name: "activity")
+            .frame(height: height)
+            .overlay(alignment: .topLeading) {
+                if entries.isEmpty { Text("暂无活动记录").font(.caption).foregroundStyle(.tertiary).padding(.top, 6) }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if hasNewEntries && !following {
+                    Button("查看最新", systemImage: "arrow.down") {
+                        following = true
+                        hasNewEntries = false
+                        proxy.scrollTo("latest", anchor: .bottom)
+                    }.buttonStyle(.bordered).buttonBorderShape(.capsule).controlSize(.small)
+                }
+            }
+            .modifier(ActivityScrollTracking(following: $following, hasNewEntries: $hasNewEntries))
+            .onPreferenceChange(ActivityBottomPreference.self) { isAtBottom in
+                if #available(macOS 15.0, *) { return }
+                if following != isAtBottom { following = isAtBottom }
+                if isAtBottom && hasNewEntries { hasNewEntries = false }
+            }
+            .onAppear { proxy.scrollTo("latest", anchor: .bottom) }
+            .onChange(of: entries) { _, _ in
+                if following { proxy.scrollTo("latest", anchor: .bottom) }
+                else { hasNewEntries = true }
+            }
+        }
+    }
+
+    @ViewBuilder private var rows: some View {
+        ForEach(entries) { entry in
+            TaskActivityRow(entry: entry).equatable()
+        }
+        Color.clear.frame(height: 0).id("latest")
+    }
+}
+
+private struct TaskActivityRow: View, Equatable {
+    let entry: TaskActivity
+    var body: some View {
+                        HStack(spacing: 10) {
+                            Text(entry.date, format: .dateTime.hour().minute().second())
+                                .monospacedDigit().foregroundStyle(.tertiary)
+                                .frame(width: 64, alignment: .leading)
+                            Image(systemName: symbol(entry.kind))
+                                .foregroundStyle(color(entry.kind)).frame(width: 14)
+                                .accessibilityHidden(true)
+                            Text(entry.message).lineLimit(1)
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .font(.caption)
+                        .frame(height: 28)
+                        .help(entry.date.formatted(date: .abbreviated, time: .standard) + " · " + entry.message)
+                        .textSelection(.enabled)
+                        .contextMenu {
+                            Button("复制记录") {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(entry.date.formatted() + " · " + entry.message, forType: .string)
+                            }
+                        }
+    }
+
+    private func symbol(_ kind: TaskActivity.Kind) -> String {
+        switch kind {
+        case .information: "circle.fill"
+        case .stock: "checkmark.circle.fill"
+        case .warning: "exclamationmark.circle"
+        case .error: "exclamationmark.triangle"
+        }
+    }
+
+    private func color(_ kind: TaskActivity.Kind) -> Color {
+        switch kind {
+        case .information: .secondary
+        case .stock: .green
+        case .warning: .orange
+        case .error: .red
+        }
+    }
+}
+
+
+private struct ActivityScrollTracking: ViewModifier {
+    @Binding var following: Bool
+    @Binding var hasNewEntries: Bool
+
+    func body(content: Content) -> some View {
+        if #available(macOS 15.0, *) {
+            content.onScrollGeometryChange(for: Bool.self) { geometry in
+                geometry.contentOffset.y + geometry.containerSize.height >= geometry.contentSize.height - 2
+            } action: { _, isAtBottom in
+                following = isAtBottom
+                if isAtBottom { hasNewEntries = false }
+            }
+        } else {
+            content
+        }
     }
 }

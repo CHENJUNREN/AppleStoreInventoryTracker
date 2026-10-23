@@ -83,3 +83,26 @@ struct ScanTaskDraft {
         return result
     }
 }
+
+struct TaskActivity: Codable, Identifiable, Equatable {
+    enum Kind: String, Codable { case information, stock, warning, error }
+    var id = UUID()
+    var date = Date()
+    var kind: Kind
+    var message: String
+    var key: String?
+}
+
+struct TaskActivityHistory: Codable {
+    var entries: [TaskActivity] = []
+
+    mutating func record(_ message: String, kind: TaskActivity.Kind = .information, key: String? = nil) {
+        // Refresh repeated observations without moving older events out of chronological order.
+        if let key, entries.last?.key == key, entries.last?.message == message {
+            entries[entries.count - 1].date = Date()
+        } else {
+            entries.append(TaskActivity(kind: kind, message: message, key: key))
+            if entries.count > 200 { entries.removeFirst(entries.count - 200) }
+        }
+    }
+}

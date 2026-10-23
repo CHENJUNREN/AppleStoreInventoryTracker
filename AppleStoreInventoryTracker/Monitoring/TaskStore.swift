@@ -8,16 +8,19 @@ final class TaskStore {
         var defaults: ScanDefaults
         var tasks: [ScanTask]
         var results: [String: CachedScanResult]?
+        var histories: [String: TaskActivityHistory]?
     }
     let toast = ToastCenter()
     let purchaseAssistant = PurchaseAssistant()
     private(set) var defaults = ScanDefaults()
     private(set) var tasks: [ScanTask] = []
+    private(set) var histories: [String: TaskActivityHistory] = [:]
     private(set) var storageError: String?
     @ObservationIgnored private let preferences: UserDefaults
     @ObservationIgnored private let client = ScheduledInventoryClient()
     @ObservationIgnored private var results: [String: CachedScanResult] = [:]
     @ObservationIgnored private var runners: [UUID: ContentViewModel] = [:]
+    @ObservationIgnored private var pendingHistorySave: Task<Void, Never>?
     private static let storageKey = "desktopScanTasks.v1"
 
     init(preferences: UserDefaults = .standard) {
@@ -25,12 +28,16 @@ final class TaskStore {
         purchaseAssistant.onFeedback = { [weak self] text, isError in
             self?.toast.show(text, kind: isError ? .error : .information)
         }
+        purchaseAssistant.onActivity = { [weak self] id, message, kind in
+            self?.record(message, kind: kind, for: id)
+        }
         if let data = preferences.data(forKey: Self.storageKey) {
             do {
                 let snapshot = try JSONDecoder().decode(Snapshot.self, from: data)
                 defaults = snapshot.defaults
                 tasks = snapshot.tasks
                 results = snapshot.results ?? [:]
+                histories = snapshot.histories ?? [:]
             } catch {
                 storageError = "无法读取已保存的任务。原始数据已保留，请先备份再重试。"
             }
@@ -66,11 +73,27 @@ final class TaskStore {
            result.inventories.allSatisfy({ $0.id == task.normalizedProduct }) {
             runner.restore(result)
         }
-        runner.onError = { [weak self] error in
-            self?.toast.show(error, kind: .error)
+        runner.onActivity = { [weak self] message, kind in
+            self?.record(message, kind: kind, for: id)
         }
         runner.onResult = { [weak self] result in
             guard let self, self.tasks.contains(where: { $0.id == id }) else { return }
+            let previous = self.results[id.uuidString]?.inventories.flatMap(\.stores) ?? []
+            let current = result.inventories.flatMap(\.stores)
+            let old = Dictionary(previous.map { ($0.id, $0.isProductAvailable) }, uniquingKeysWith: { _, new in new })
+            let changed = current.filter { old[$0.id] != $0.isProductAvailable }
+            if !changed.isEmpty {
+                let message = changed.map { shop in
+                    let status = shop.isProductAvailable
+                        ? (old[shop.id] == false ? "恢复有货" : "有货") : "暂无现货"
+                    return shop.storeName.trimmingCharacters(in: .whitespaces) + status
+                }.joined(separator: " · ")
+                self.record(message, kind: changed.contains(where: \.isProductAvailable) ? .stock : .information, for: id)
+            } else {
+                let availableCount = current.filter(\.isProductAvailable).count
+                let message = availableCount == 0 ? "查询完成 · 暂无现货" : "查询完成 · \(availableCount) 家门店可取货"
+                self.record(message, key: "inventory", for: id)
+            }
             self.results[id.uuidString] = result
             self.persist()
             if let task = self.tasks.first(where: { $0.id == id }), self.runner(for: id).isTracking {
@@ -140,6 +163,7 @@ final class TaskStore {
         runners.removeValue(forKey: task.id)
         results.removeValue(forKey: task.id.uuidString)
         tasks.removeAll { $0.id == task.id }
+        histories.removeValue(forKey: task.id.uuidString)
         persist()
     }
 
@@ -152,11 +176,24 @@ final class TaskStore {
     func stopAll() {
         for runner in runners.values { runner.stopTracking(preservingResults: true) }
         purchaseAssistant.shutdown()
+        persist()
+    }
+
+    private func record(_ message: String, kind: TaskActivity.Kind = .information, key: String? = nil, for id: UUID) {
+        guard tasks.contains(where: { $0.id == id }) else { return }
+        histories[id.uuidString, default: TaskActivityHistory()].record(message, kind: kind, key: key)
+        pendingHistorySave?.cancel()
+        pendingHistorySave = Task { @MainActor [weak self] in
+            do { try await Task.sleep(for: .milliseconds(300)) } catch { return }
+            self?.persist()
+        }
     }
 
     private func persist() {
+        pendingHistorySave?.cancel()
+        pendingHistorySave = nil
         guard storageError == nil else { return }
-        do { preferences.set(try JSONEncoder().encode(Snapshot(defaults: defaults, tasks: tasks, results: results)), forKey: Self.storageKey) }
+        do { preferences.set(try JSONEncoder().encode(Snapshot(defaults: defaults, tasks: tasks, results: results, histories: histories)), forKey: Self.storageKey) }
         catch { storageError = "任务保存失败：\(error.localizedDescription)" }
     }
 }
